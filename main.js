@@ -177,7 +177,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'manual v2';
+const APP_VERSION = 'cables v1';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -490,6 +490,7 @@ let assetLabels = null; // floating asset names, once asset-labels.js has loaded
     diorama.add(d.group);
     dioramaState.ground = d.ground;
     dioramaState.update = d.update;
+    dioramaState.setScale = d.setScale;
     dioramaScale = 0; // force a log line with the real scale
     fitDiorama(dioramaState.table.length, dioramaState.table.width);
   } catch (err) {
@@ -513,6 +514,7 @@ function fitDiorama(tableLength, tableWidth) {
   );
   if (!(s > 0)) s = 1 / 100;
   diorama.scale.setScalar(s);
+  dioramaState.setScale?.(s); // cables keep their size on the table
   if (Math.abs(s - dioramaScale) > 0.05 * s) {
     info('Diorama scaled', {
       scale: '1:' + Math.round(1 / s),
@@ -1747,7 +1749,9 @@ function syncScene() {
       tableAnchor.add(obj);
       build.objects.set(node.id, obj);
     }
-    build.links.sync(sys);
+    // Cables and tubes are routed around the assets (links.js → cables.js).
+    const footprints = new Map([...build.objects].map(([id, o]) => [id, o.userData.footprintRadius]));
+    build.links.sync(sys, { table: state.table, footprints });
   }
   if (!ids.has(build.selected)) build.selected = null;
   if (!ids.has(build.hovered)) build.hovered = null;

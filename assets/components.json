@@ -103,12 +103,19 @@
       "power_kW": 2
     }
   },
+  "about_carriers": "How each kind of connection is drawn: style \"cable\" (thin, solid) or \"tube\" (thicker, see-through pipe). Cables arch over tubes where they cross.",
   "carriers": {
     "electricity": {
-      "color": "#ffe14d"
+      "color": "#ffe14d",
+      "style": "cable"
     },
     "heat": {
-      "color": "#ff7a2e"
+      "color": "#ff7a2e",
+      "style": "tube"
+    },
+    "gas": {
+      "color": "#7ad7ff",
+      "style": "tube"
     }
   },
   "tableWhite": "#f0f0f0",
