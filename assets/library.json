@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Asset library. 'file' is relative to this file. Models are placed in real metres: 'fit' rescales a model whose units are unknown (length = longest horizontal side, height = vertical size); without 'fit' the model is already in metres (our generated models). 'ports' are the named connection points (nodes called port_<name>) used by energy flows. 'size' is the approximate real size [length, height, width] in metres, also used for the placeholder box if a model fails to load.",
+  "about": "Asset library. 'file' is relative to this file. Models are placed in real metres: 'fit' rescales a model whose units are unknown (length = longest horizontal side, height = vertical size); without 'fit' the model is already in metres (our generated models). 'ports' are the named connection points (nodes called port_<name>) used by energy flows. 'size' is the approximate real size [length, height, width] in metres, also used for the placeholder box if a model fails to load. 'name' is shown on the asset's floating label; everything else (category, energy, size, source) plus an optional 'info' object of extra rows, e.g. { \"Owner\": \"Municipality\" }, drops down when the label is clicked.",
   "assets": {
     "house-pv": {
       "name": "House with PV",

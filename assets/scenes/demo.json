@@ -1,5 +1,5 @@
 {
-  "about": "Scene layout in real metres. x = along the table's long side, z = across (towards the viewer's side = +z), rotation in degrees around the vertical. Ground features are flat strips on the lawn. Flows connect 'item' or 'item:port' (port = node port_<name> in the model; without a port the top of the model is used). kw = power in kilowatts; kind = solar | ev | share | import | export | battery.",
+  "about": "Scene layout in real metres. x = along the table's long side, z = across (towards the viewer's side = +z), rotation in degrees around the vertical. Ground features are flat strips on the lawn. Flows connect 'item' or 'item:port' (port = node port_<name> in the model; without a port the top of the model is used). kw = power in kilowatts; kind = solar | ev | share | import | export | battery. An item may also have 'name' (replaces the library name on its floating label) and 'info' (extra rows in the label's details).",
   "library": "../library.json",
   "ground": {
     "length": 36,

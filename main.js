@@ -375,17 +375,23 @@ scene.add(tableAnchor);
 //   ?asset=office-pv   show just one library asset (handy with ?preview=1)
 //   ?scale=50          fixed 1:50 instead of "as big as fits"
 //   ?flows=0           hide the energy flows
+//   ?labels=0          hide the floating asset names (see asset-labels.js)
+//   ?labelsize=1.5     make the asset names bigger (default 1, 1.8 in ?preview=1)
 // ---------------------------------------------------------------------------
 const DIORAMA = {
   fill: 0.85,               // use at most 85% of the table
   maxScale: 1 / 20,         // never bigger than 1:20, even on a huge table
   fixedScale: params.has('scale') ? 1 / parseFloat(params.get('scale')) : null,
   scene: params.get('scene') || 'demo',
+  labels: params.get('labels') !== '0',
+  // On a laptop screen the panels need to be bigger than in the headset to be readable.
+  labelSize: params.has('labelsize') ? parseFloat(params.get('labelsize')) : params.get('preview') === '1' ? 1.8 : 1,
 };
 
 const diorama = new THREE.Group();
 tableAnchor.add(diorama);
 const dioramaState = { ground: { length: 15, width: 11 }, update: null, table: { length: 1.2, width: 0.8 } };
+let assetLabels = null; // floating asset names, once asset-labels.js has loaded
 
 (async function loadDiorama() {
   const asset = params.get('asset');
@@ -401,6 +407,7 @@ const dioramaState = { ground: { length: 15, width: 11 }, update: null, table: {
       log: { info, warn },
     });
     d.flowsGroup.visible = params.get('flows') !== '0';
+    if (DIORAMA.labels) await addAssetLabels(d);
     diorama.add(d.group);
     dioramaState.ground = d.ground;
     dioramaState.update = d.update;
@@ -442,6 +449,23 @@ function animateDiorama(time) {
   const dt = lastDioramaTime ? Math.min(0.1, (time - lastDioramaTime) / 1000) : 0;
   lastDioramaTime = time;
   if (dioramaState.update && tableAnchor.visible) dioramaState.update(dt);
+  if (assetLabels && tableAnchor.visible) assetLabels.update(diorama, dt);
+}
+
+// Floating name panels above the assets (asset-labels.js). Loaded separately: if it fails,
+// the diorama still shows, just without names.
+async function addAssetLabels(d) {
+  try {
+    const { createAssetLabels } = await import('./asset-labels.js');
+    const labels = createAssetLabels({
+      items: d.items, flows: d.flows, root: d.group, size: DIORAMA.labelSize, log: { info, warn },
+    });
+    tableAnchor.add(labels.group);
+    assetLabels = labels;
+    info('Asset labels ready', { count: labels.labels.length });
+  } catch (err) {
+    warn('Asset labels failed, showing the diorama without them', errText(err));
+  }
 }
 
 // Rounded-rectangle outline of the detected table.
@@ -1207,7 +1231,7 @@ scene.add(calibGroup);
 // Bright colours: the Magic Leap 2 display is additive, dark = invisible.
 const CORNER_COLOURS = [0xff5ad1, 0xffd60a, 0x5affc8, 0x5ac8ff];
 
-function makeDynamicLine(maxPoints, color) {
+function makeDynamicLine(maxPoints, color, parent = calibGroup) {
   const geo = new THREE.BufferGeometry();
   const attr = new THREE.BufferAttribute(new Float32Array(maxPoints * 3), 3);
   attr.setUsage(THREE.DynamicDrawUsage);
@@ -1215,7 +1239,7 @@ function makeDynamicLine(maxPoints, color) {
   geo.setDrawRange(0, 0);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color }));
   line.frustumCulled = false;
-  calibGroup.add(line);
+  parent.add(line);
   return {
     line,
     set(points) {
@@ -1469,7 +1493,10 @@ function cornersStep(frame, refSpace) {
   for (const [src, entry] of calib.sources) entry.aim = aimPoint(frame, refSpace, src, entry);
   if (calib.done) {
     const t = state.table;
-    setHud('Table calibrated', `${t.length.toFixed(2)} × ${t.width.toFixed(2)} m   ·   bumper = calibrate again`);
+    setHud(
+      `Table calibrated  ·  ${t.length.toFixed(2)} × ${t.width.toFixed(2)} m`,
+      (assetLabels ? 'trigger on a name = details   ·   ' : '') + 'bumper = calibrate again'
+    );
     return;
   }
 
@@ -1499,6 +1526,67 @@ function cornersStep(frame, refSpace) {
   else if (n === 0 && aim.how === 'controller tip') hint = 'no surface found: touch the corner with the controller tip';
   else hint = `${aim.how}   ·   ${n ? 'bumper = undo' : 'any order'}`;
   setHud(`Corner ${n + 1} of 4: aim at a table corner, press the trigger`, hint);
+}
+
+// ---------------------------------------------------------------------------
+// Asset labels: a name panel floats above every asset on the table (asset-labels.js).
+// Point the controller at one and press the trigger to drop down its details.
+// ---------------------------------------------------------------------------
+const labelRaycaster = new THREE.Raycaster();
+labelRaycaster.camera = camera; // sprites are raycast as seen from the head
+labelRaycaster.far = CONFIG.maxDistance;
+// Controller ray: faint while it points at nothing, bright up to the panel it points at.
+const labelPointer = makeDynamicLine(2, 0xffffff, scene);
+labelPointer.line.material.transparent = true;
+
+function labelsShown() {
+  return assetLabels !== null && tableAnchor.visible && assetLabels.group.visible;
+}
+
+// Where an input source points, in the reference space: { origin, dir } or null.
+function sourceRay(frame, refSpace, src) {
+  const p = frame.getPose(src.targetRaySpace, refSpace);
+  if (!p) return null;
+  _m.fromArray(p.transform.matrix);
+  return {
+    origin: new THREE.Vector3().setFromMatrixPosition(_m),
+    dir: new THREE.Vector3(0, 0, -1).transformDirection(_m),
+  };
+}
+
+function pickLabel(ray) {
+  labelRaycaster.set(ray.origin, ray.dir);
+  return assetLabels.pick(labelRaycaster);
+}
+
+// Every XR frame: highlight the panel the controller points at.
+function labelsStep(frame, refSpace) {
+  const src = labelsShown() ? pickActiveSource() : null;
+  const ray = src ? sourceRay(frame, refSpace, src) : null;
+  const hit = ray ? pickLabel(ray) : null;
+  assetLabels?.setHover(hit?.label ?? null);
+  if (!ray) {
+    labelPointer.set([]);
+    return;
+  }
+  labelPointer.set([ray.origin, hit ? hit.point : ray.origin.clone().addScaledVector(ray.dir, 1.5)]);
+  labelPointer.line.material.opacity = hit ? 0.9 : 0.3;
+}
+
+// Trigger: show or hide the details of the panel the input points at. True if it hit one.
+function toggleLabelAt(e) {
+  if (!labelsShown()) return false;
+  const src = e?.inputSource;
+  if (src && !src.gamepad && hasController()) return false; // stray hand pinch
+  let hit = null;
+  if (src && e.frame) {
+    const ray = sourceRay(e.frame, renderer.xr.getReferenceSpace(), src);
+    if (ray) hit = pickLabel(ray);
+  }
+  const label = hit?.label ?? assetLabels.hovered;
+  if (!label) return false;
+  assetLabels.toggle(label);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1707,6 +1795,7 @@ function gazeStep(frame, refSpace) {
 }
 
 function onSelect(e) {
+  if (toggleLabelAt(e)) return; // pointing at an asset name: that wins over everything else
   if (state.mode === 'corners') {
     placeCorner(e?.inputSource);
     return;
@@ -1771,6 +1860,7 @@ function onXRFrame(time, frame) {
   if (state.mode === 'corners') cornersStep(frame, refSpace);
   else if (state.mode === 'camera') cameraStep(time, frame, pose, refSpace);
   else gazeStep(frame, refSpace);
+  labelsStep(frame, refSpace);
 }
 
 // ---------------------------------------------------------------------------
@@ -2033,6 +2123,8 @@ function onSessionEnd() {
   });
   for (const s of [...calib.sources.keys()]) untrackInputSource(s);
   calibGroup.visible = false;
+  labelPointer.set([]);
+  assetLabels?.setHover(null);
   resetTracking();
   reticle.visible = false;
   startBtn.disabled = false;
@@ -2071,8 +2163,36 @@ function startPreview() {
   const angle = params.has('angle') ? parseFloat(params.get('angle')) : null; // fixed view, degrees
   const dist = parseFloat(params.get('dist') ?? '0.9');                       // camera distance, m
   const height = parseFloat(params.get('height') ?? '0.55');
+
+  // Mouse: click an asset name to show or hide its details, click elsewhere to close.
+  // Hovering a name pauses the turntable so it is easy to click.
+  const canvas = renderer.domElement;
+  const mouse = { ndc: new THREE.Vector2(), inside: false };
+  const pickAt = (e) => {
+    mouse.ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    labelRaycaster.setFromCamera(mouse.ndc, camera);
+    return assetLabels?.pick(labelRaycaster) ?? null;
+  };
+  canvas.addEventListener('pointermove', (e) => { pickAt(e); mouse.inside = true; });
+  canvas.addEventListener('pointerleave', () => { mouse.inside = false; });
+  canvas.addEventListener('click', (e) => {
+    const hit = pickAt(e);
+    if (hit) assetLabels.toggle(hit.label);
+    else assetLabels?.closeAll();
+  });
+
+  let turn = 0, lastTime = 0;
   renderer.setAnimationLoop((time) => {
-    const a = angle !== null ? THREE.MathUtils.degToRad(angle) : time * 0.0002;
+    let hit = null;
+    if (assetLabels && mouse.inside) {
+      labelRaycaster.setFromCamera(mouse.ndc, camera);
+      hit = assetLabels.pick(labelRaycaster);
+    }
+    assetLabels?.setHover(hit?.label ?? null);
+    canvas.style.cursor = hit ? 'pointer' : '';
+    if (!hit) turn += (time - (lastTime || time)) * 0.0002;
+    lastTime = time;
+    const a = angle !== null ? THREE.MathUtils.degToRad(angle) : turn;
     camera.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
     camera.lookAt(0, 0.05, 0);
     animateDiorama(time);
