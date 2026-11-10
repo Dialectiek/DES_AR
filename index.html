@@ -52,7 +52,7 @@
     <div class="buttons">
       <button id="start" disabled>Checking WebXR…</button>
       <button id="start-safe" class="secondary" disabled>Safe start (no extra features)</button>
-      <button id="start-preview" class="secondary" type="button">Preview on this screen (no headset)</button>
+      <button id="start-preview" class="secondary" type="button">Use on this screen (no headset)</button>
     </div>
 
     <fieldset class="diagnostics">
@@ -110,9 +110,11 @@
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
         <li><code>?build=manual</code> / <code>cards</code> / <code>demo</code> — choose what goes on the table</li>
         <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
-        <li><code>?preview=1</code> — no headset: a virtual table on this screen, with what is chosen under "What goes on the table"
-          (or <code>&amp;build=manual</code> / <code>demo</code>). Manual: the mouse is the controller (click = trigger, Backspace = bumper).
-          Colour cards need the headset camera, so their preview shows the demo.</li>
+        <li><code>?preview=1</code> — use it on this screen, no headset (same as the "Use on this screen" button): a virtual
+          table with what is chosen under "What goes on the table" (or <code>&amp;build=manual</code> / <code>demo</code>).
+          Drag = turn the view, right-drag = move it, wheel = zoom. Manual: click = trigger, Backspace = undo / back,
+          Enter = done; the toolbar has the same and "Start over". Colour cards need the headset camera, so they show the demo.
+          <code>&amp;size=2x1</code> — the virtual table's size in metres (default 1.6x0.8).</li>
         <li><code>?corner=0.1</code> — corner radius of the outline in metres (detect: default estimated, corners: default 0)</li>
         <li><code>?white=180</code> — fixed brightness threshold for "white" (default: automatic)</li>
         <li><code>?aa=0</code> — turn antialiasing off</li>

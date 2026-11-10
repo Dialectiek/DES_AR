@@ -177,7 +177,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'cables v1';
+const APP_VERSION = 'screen v1';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -643,10 +643,12 @@ function makeCanvasPanel(cw, ch, mw, mh, x, y, order) {
 // Status line, centre bottom.
 const statusPanel = makeCanvasPanel(1024, 200, 0.46, 0.09, -0.02, -0.15, 999);
 let lastStatus = '';
+let hudMirror = null; // on a screen (?preview=1) the same two lines go to the page too
 function setHud(line1, line2 = '') {
   const text = line1 + '\n' + line2;
   if (text === lastStatus) return;
   lastStatus = text;
+  hudMirror?.(line1, line2);
   const { ctx, canvas, texture } = statusPanel;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.textAlign = 'center';
@@ -2125,11 +2127,13 @@ function placeCheck(local) {
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const press = () => (preview.active ? 'click' : 'trigger'); // controller or mouse
 
 function manualTrigger(src) {
   if (!acceptInput(src, 'pinch')) return;
   const now = performance.now();
-  if (now - manual.lastTrigger < 300) return; // double press
+  if (src && now - manual.lastTrigger < 300) return; // the headset sometimes fires one press twice
   manual.lastTrigger = now;
   if (src && calib.sources.has(src)) calib.active = src;
   const sys = ensureSystem();
@@ -2143,15 +2147,11 @@ function manualTrigger(src) {
   if (manual.phase === 'place') {
     if (tile?.kind === 'asset') {
       pal.selected = tile.type;
-      say(`Placing: ${tile.label}. Trigger on the table to put it there`);
+      say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
       return;
     }
     if (tile?.kind === 'done') {
-      if (!sys.nodes.length) {
-        say('Place at least one asset first', 'warn');
-        return;
-      }
-      setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now trigger on an asset, then on another`);
+      manualNext();
       return;
     }
     const aim = currentAim();
@@ -2175,11 +2175,11 @@ function manualTrigger(src) {
 
   if (manual.phase === 'connect') {
     if (tile?.kind === 'back') {
-      setManualPhase('place', 'Back to placing: pick an asset, trigger on the table');
+      manualAddAssets();
       return;
     }
     if (tile?.kind === 'done') {
-      setManualPhase('done', `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`);
+      manualNext();
       return;
     }
     if (build.hovered !== null) clickAsset(build.hovered);
@@ -2189,6 +2189,26 @@ function manualTrigger(src) {
     }
   }
   // done: view only
+}
+
+// "Done" (palette button, or the toolbar on a screen): placing → connecting → finished.
+function manualNext() {
+  const sys = build.system;
+  if (!sys) return;
+  if (manual.phase === 'place') {
+    if (!sys.nodes.length) {
+      say('Place at least one asset first', 'warn');
+      return;
+    }
+    setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now ${press()} on an asset, then on another`);
+  } else if (manual.phase === 'connect') {
+    setManualPhase('done', `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`);
+  }
+}
+
+// "Add assets" while connecting: back to placing, nothing is removed.
+function manualAddAssets() {
+  if (manual.phase !== 'place') setManualPhase('place', `Back to placing: pick an asset, ${press()} on the table`);
 }
 
 // Short bumper press: undo, or one phase back.
@@ -2263,26 +2283,30 @@ function manualStep(time) {
   build.links?.update(dt);
 
   // HUD: line 1 = what the trigger does now, line 2 = the rest.
+  const desk = preview.active; // on a screen: mouse, keys and toolbar instead of the bumper
   const tile = tileObj?.userData;
   const n = sys.nodes.length, m = sys.links.length;
   const label = (type) => components.config.assets[type]?.label ?? type;
   let line1, line2;
   if (manual.phase === 'place') {
-    if (tile?.kind === 'asset') line1 = `${tile.label}: trigger to pick it`;
-    else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): trigger to start connecting` : 'Place at least one asset first';
+    if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
+    else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): ${press()} to start connecting` : 'Place at least one asset first';
     else if (check && !check.ok) line1 = check.reason;
-    else line1 = `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
-    line2 = `${plural(n, 'asset')} · pick another asset on the palette · bumper = undo · hold = recalibrate`;
+    else line1 = desk ? `Placing ${label(pal.selected)}: click on the table` : `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
+    line2 = desk ? `${plural(n, 'asset')} · click a tile to pick another asset · drag to turn the view`
+      : `${plural(n, 'asset')} · pick another asset on the palette · bumper = undo · hold = recalibrate`;
   } else if (manual.phase === 'connect') {
     if (tile?.kind === 'back') line1 = 'Back to placing assets';
-    else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): trigger to finish`;
+    else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): ${press()} to finish`;
     else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
-    else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
-    else line1 = `Connect: trigger on an asset, then on another (${plural(m, 'connection')})`;
-    line2 = 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
+    else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: ${press()} to select`;
+    else line1 = `Connect: ${press()} on an asset, then on another (${plural(m, 'connection')})`;
+    line2 = desk ? 'click a connected pair again = disconnect · drag to turn the view'
+      : 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
   } else {
     line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}`;
-    line2 = 'bumper = edit the connections · hold = start over';
+    line2 = desk ? 'Undo / back = edit the connections · Start over = clear the table'
+      : 'bumper = edit the connections · hold = start over';
   }
   if (performance.now() < build.messageUntil) line1 = build.message;
   setHud(line1, line2);
@@ -3232,12 +3256,15 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ?preview=1 — no headset, no WebXR: a virtual 1.6 x 0.8 m table on the laptop screen,
-// with what is chosen under "What goes on the table" (?build= or the saved choice):
-//   manual — the mouse is the controller ray, click = trigger, Backspace = bumper (short
-//            press). The camera stays still.
-//   demo   — the diorama on a turntable; click an asset for its name.
-//   cards  — needs the headset camera, so the preview shows the demo instead.
+// ?preview=1 — the app on a normal screen: no headset, no WebXR. A virtual table (default
+// 1.6 x 0.8 m, ?size=2x1 for another one) with what is chosen under "What goes on the
+// table" (?build= or the saved choice):
+//   manual — the mouse is the controller ray: click = trigger. Backspace / "Undo / back" =
+//            bumper (short press), Enter / "Done" = the palette's Done.
+//   demo   — the diorama turning slowly; click an asset for its name.
+//   cards  — needs the headset camera, so it shows the demo instead.
+// Camera: drag = turn around the table, right-drag = move, wheel = zoom. A toolbar on the
+// page has the actions and views; the status lines (setHud) show on the page too.
 const preview = { active: false, aim: null, ndc: null };
 const _ray = new THREE.Raycaster();
 
@@ -3250,73 +3277,193 @@ function previewAim() {
   return { origin: origin.clone(), dir: direction.clone(), point, how: 'mouse' };
 }
 
-function startPreview() {
+// ?size=2x1 → [length, width] of the virtual table in metres; the long side is the length.
+function previewTableSize() {
+  const m = /^\s*(\d*\.?\d+)\s*x\s*(\d*\.?\d+)\s*$/i.exec(params.get('size') ?? '');
+  const a = THREE.MathUtils.clamp(m ? parseFloat(m[1]) : 1.6, 0.3, 4);
+  const b = THREE.MathUtils.clamp(m ? parseFloat(m[2]) : 0.8, 0.3, 4);
+  return a >= b ? [a, b] : [b, a];
+}
+
+// Toolbar + status on the page. buttons: [{ id, text, title?, primary?, run }].
+function makeDeskBar(buttons) {
+  const bar = document.createElement('div');
+  bar.className = 'desk-bar';
+  bar.innerHTML = '<div class="desk-status"><b></b><span></span></div><div class="desk-buttons"></div>';
+  const [line1, line2] = bar.querySelectorAll('.desk-status > *');
+  const row = bar.querySelector('.desk-buttons');
+  const els = {};
+  for (const b of buttons) {
+    if (b.gap) { row.appendChild(Object.assign(document.createElement('span'), { className: 'desk-gap' })); continue; }
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.textContent = b.text;
+    if (b.title) el.title = b.title;
+    if (b.primary) el.className = 'primary';
+    if (b.current) el.className = 'current';
+    el.addEventListener('click', (e) => { e.stopPropagation(); b.run?.(); el.blur(); });
+    row.appendChild(el);
+    els[b.id] = el;
+  }
+  document.body.appendChild(bar);
+  return {
+    status(a, b = '') { line1.textContent = a; line2.textContent = b; },
+    show(id, visible, text) {
+      const el = els[id];
+      if (!el) return;
+      el.hidden = !visible;
+      if (text && el.textContent !== text) el.textContent = text;
+    },
+  };
+}
+
+// Opens the screen version again with another build (manual / demo), or the start page.
+function goPreview(build) {
+  const p = new URLSearchParams(location.search);
+  if (build) {
+    p.set('preview', '1');
+    p.set('build', build);
+    try { localStorage.setItem(BUILD_KEY, build); } catch { /* ignore */ }
+  } else {
+    p.delete('preview');
+  }
+  location.search = p.toString();
+}
+
+async function startPreview() {
   const chosen = chosenBuild();
   const manualPreview = chosen === 'manual';
   state.build = manualPreview ? 'manual' : 'demo';
+  const [L, W] = previewTableSize();
   info(manualPreview
-    ? 'Preview mode: manual mode on a virtual 1.6 x 0.8 m table (mouse = controller, click = trigger, Backspace = bumper)'
-    : 'Preview mode: diorama on a virtual 1.6 x 0.8 m table');
-  if (chosen === 'cards') info('Colour cards need the headset camera: the preview shows the demo scene');
+    ? `On screen: manual mode on a virtual ${L} x ${W} m table (click = trigger, Backspace = undo / back, Enter = done)`
+    : `On screen: the demo scene on a virtual ${L} x ${W} m table`);
+  if (chosen === 'cards') info('Colour cards need the headset camera: showing the demo scene instead');
   document.body.classList.add('preview');
-  Object.assign(renderer.domElement.style, { display: 'block', position: 'fixed', inset: '0', zIndex: '0' });
+  // The log starts folded away on a screen: the toolbar shows what matters.
+  document.getElementById('log-panel')?.classList.add('collapsed');
+  const toggle = document.getElementById('log-toggle');
+  if (toggle) toggle.textContent = 'Show';
+  const canvas = renderer.domElement;
+  Object.assign(canvas.style, { display: 'block', position: 'fixed', inset: '0', zIndex: '0' });
   renderer.setClearColor(0x20252c, 1);
   tableAnchor.visible = true;
   outline.visible = true;
   diorama.visible = !manualPreview;
-  updateOutline(1.6, 0.8, 0);
+  updateOutline(L, W, 0);
   const table = new THREE.Mesh(
-    new THREE.BoxGeometry(1.6, 0.04, 0.8),
+    new THREE.BoxGeometry(L, 0.04, W),
     new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.9 })
   );
   table.position.y = -0.02;
   tableAnchor.add(table);
-  const angle = params.has('angle') ? parseFloat(params.get('angle')) : manualPreview ? 0 : null; // fixed view, degrees
-  const dist = parseFloat(params.get('dist') ?? (manualPreview ? '1.0' : '0.9'));                 // camera distance, m
-  const height = parseFloat(params.get('height') ?? (manualPreview ? '0.85' : '0.55'));
-  let turn = 0, lastTime = 0;
-  const placeCamera = (time, pause = false) => {
-    if (!pause) turn += (time - (lastTime || time)) * 0.0002;
-    lastTime = time;
-    const a = angle !== null ? THREE.MathUtils.degToRad(angle) : turn;
-    camera.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
-    camera.lookAt(0, manualPreview ? 0 : 0.05, 0);
+
+  // Camera: starts on the +z side (?angle=, ?dist=, ?height= change that), then the mouse
+  // turns, moves and zooms it (OrbitControls).
+  const k = Math.max(L / 1.6, W / 0.8);
+  const angle = THREE.MathUtils.degToRad(parseFloat(params.get('angle') ?? '0'));
+  const dist = parseFloat(params.get('dist') ?? String((manualPreview ? 1.0 : 0.9) * k));
+  const height = parseFloat(params.get('height') ?? String((manualPreview ? 0.85 : 0.55) * k));
+  const target = new THREE.Vector3(0, manualPreview ? 0 : 0.05, 0);
+  const home = new THREE.Vector3(Math.sin(angle) * dist, height, Math.cos(angle) * dist);
+  let controls = null;
+  const setView = (pos) => {
+    camera.position.copy(pos);
+    camera.lookAt(target);
+    if (controls) { controls.target.copy(target); controls.update(); }
     camera.updateMatrixWorld();
   };
-  const canvas = renderer.domElement;
+  setView(home);
+  let autoTurn = !manualPreview && !params.has('angle'); // the demo turns until you take over
+  try {
+    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.rotateSpeed = 0.6;
+    controls.minDistance = 0.15;
+    controls.maxDistance = 4 * k;
+    controls.maxPolarAngle = Math.PI / 2 - 0.04; // stay above the table
+    controls.autoRotateSpeed = 2; // one turn in 30 s
+    controls.addEventListener('start', () => { autoTurn = false; });
+    setView(home);
+  } catch (err) {
+    warn('Camera controls failed to load: fixed view', errText(err));
+  }
+  const views = [
+    { gap: true },
+    { id: 'top', text: 'Top view', run: () => { autoTurn = false; setView(new THREE.Vector3(0, 1.25 * k, 0.001)); } },
+    { id: 'home', text: 'Reset view', run: () => setView(home) },
+    { gap: true },
+    { id: 'manual', text: 'Manual', current: manualPreview, run: () => goPreview('manual') },
+    { id: 'demo', text: 'Demo', current: !manualPreview, run: () => goPreview('demo') },
+    { id: 'start', text: 'Start page', run: () => goPreview(null) },
+  ];
+
+  // A click that ends a drag (turning the view) is not a click on the table.
+  let down = null;
+  canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+  const dragged = (e) => down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6;
+  statusPanel.mesh.visible = false; // the page shows the status instead
 
   if (manualPreview) {
     // As if the 4 corners were just placed around the virtual table.
-    placeCamera(0);
-    state.table = { pos: tableAnchor.position.clone(), yaw: 0, length: 1.6, width: 0.8, radius: 0 };
+    state.table = { pos: tableAnchor.position.clone(), yaw: 0, length: L, width: W, radius: 0 };
     state.locked = true;
     calib.done = true;
     colourCal.done = true;
     calibGroup.visible = true;
     preview.active = true;
-    canvas.addEventListener('pointermove', (e) => {
+    const bar = makeDeskBar([
+      { id: 'back', text: '↶ Undo / back', title: 'Backspace', run: () => manualBack() },
+      { id: 'add', text: '◀ Add assets', run: () => manualAddAssets() },
+      { id: 'next', text: 'Done placing ▶', title: 'Enter', primary: true, run: () => manualNext() },
+      { id: 'restart', text: 'Start over', run: () => {
+        if (!confirm('Remove all assets and connections?')) return;
+        resetBuild();
+        enterManual();
+        say('Started over: pick an asset, click on the table');
+      } },
+      ...views,
+    ]);
+    hudMirror = (a, b) => bar.status(a, b);
+    const pointAt = (e) => {
       preview.ndc = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    });
+    };
+    canvas.addEventListener('pointermove', pointAt);
     canvas.addEventListener('pointerleave', () => { preview.ndc = null; });
-    canvas.addEventListener('click', () => manualTrigger(null));
+    canvas.addEventListener('click', (e) => {
+      if (dragged(e)) return;
+      // Aim exactly where the click is (a tap or touchpad click may come without a move).
+      pointAt(e);
+      preview.aim = previewAim();
+      manualStep(performance.now());
+      manualTrigger(null);
+    });
     window.addEventListener('keydown', (e) => {
-      if (e.key !== 'Backspace' || e.target !== document.body) return;
-      e.preventDefault();
-      manualBack();
+      if (e.target !== document.body) return;
+      if (e.key === 'Backspace') { e.preventDefault(); manualBack(); }
+      if (e.key === 'Enter') { e.preventDefault(); manualNext(); }
     });
     enterManual();
     renderer.setAnimationLoop((time) => {
-      placeCamera(time);
+      controls?.update();
       preview.aim = previewAim();
       try { manualStep(time); } catch (err) { once('preview-err', 'error', 'Manual preview failed', errText(err)); }
+      const phase = manual.phase;
+      bar.show('back', true, phase === 'done' ? '◀ Edit connections' : '↶ Undo / back');
+      bar.show('add', phase === 'connect');
+      bar.show('next', phase !== 'done', phase === 'connect' ? 'Done connecting ✓' : 'Done placing ▶');
+      canvas.style.cursor = manual.hoverTile || build.hovered !== null ? 'pointer' : '';
       animateDiorama(time);
       renderer.render(scene, camera);
     });
     return;
   }
 
-  // Diorama: click an asset to show or hide its name, click a name to show or hide its
-  // details, click elsewhere to hide them all. Hovering a name pauses the turntable.
+  // Demo: click an asset to show or hide its name, click a name to show or hide its
+  // details, click elsewhere to hide them all. Hovering a name pauses the turning.
+  const bar = makeDeskBar([{ id: 'names', text: 'Hide names', run: () => assetLabels?.hideAll() }, ...views]);
+  bar.status('Demo scene', 'click an asset for its name · drag = turn · right-drag = move · wheel = zoom');
   const mouse = { ndc: new THREE.Vector2(), inside: false };
   const pickAt = (e) => {
     mouse.ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
@@ -3326,10 +3473,12 @@ function startPreview() {
   canvas.addEventListener('pointermove', (e) => { pickAt(e); mouse.inside = true; });
   canvas.addEventListener('pointerleave', () => { mouse.inside = false; });
   canvas.addEventListener('click', (e) => {
+    if (dragged(e)) return;
     const hit = pickAt(e);
     if (hit) assetLabels.activate(hit);
     else assetLabels?.hideAll();
   });
+  let turn = 0, lastTime = 0;
   renderer.setAnimationLoop((time) => {
     let hit = null;
     if (assetLabels && mouse.inside) {
@@ -3338,7 +3487,14 @@ function startPreview() {
     }
     assetLabels?.setHover(hit);
     canvas.style.cursor = hit ? 'pointer' : '';
-    placeCamera(time, !!hit);
+    if (controls) {
+      controls.autoRotate = autoTurn && !hit;
+      controls.update();
+    } else if (autoTurn && !hit) { // no controls: turn the camera ourselves
+      turn += (time - (lastTime || time)) * 0.0002;
+      setView(new THREE.Vector3(Math.sin(angle + turn) * dist, height, Math.cos(angle + turn) * dist));
+    }
+    lastTime = time;
     animateDiorama(time);
     renderer.render(scene, camera);
   });
