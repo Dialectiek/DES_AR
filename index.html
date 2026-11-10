@@ -20,16 +20,28 @@
   <main class="panel">
     <h1>Table Cube</h1>
     <p class="lead">
-      Looks for the white table in the headset's camera feed and puts a cube on it.
+      Finds the white table in the headset's camera feed, outlines it and puts a cube in the middle.
     </p>
 
-    <button id="start" disabled>Checking WebXR…</button>
+    <fieldset id="feature-picker">
+      <legend>Features to request</legend>
+      <label><input type="checkbox" data-feature="local-floor" checked> Floor reference (local-floor)</label>
+      <label><input type="checkbox" data-feature="hit-test" checked> Hit-test (spatial data)</label>
+      <label><input type="checkbox" data-feature="plane-detection" checked> Plane detection (spatial data)</label>
+      <label><input type="checkbox" data-feature="camera-access" checked> Camera feed (camera-access)</label>
+      <label><input type="checkbox" data-feature="hand-tracking"> Hand tracking</label>
+    </fieldset>
+
+    <div class="buttons">
+      <button id="start" disabled>Checking WebXR…</button>
+      <button id="start-safe" class="secondary" disabled>Safe start (no extra features)</button>
+    </div>
     <p id="status" class="status" role="status"></p>
 
     <details>
       <summary>Controls in AR</summary>
       <ul>
-        <li><b>Trigger / pinch</b> — re-detect the table (or place the cube in fallback mode)</li>
+        <li><b>Trigger / pinch</b> — detect the table again (or place the cube in fallback mode)</li>
         <li><b>Bumper / grab</b> — show or hide the camera debug view</li>
         <li><b>Menu button</b> — exit AR</li>
       </ul>
@@ -41,12 +53,48 @@
         <li><code>?debug=1</code> — start with the camera debug view visible</li>
         <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
+        <li><code>?corner=0.1</code> — fixed corner radius in metres (default: estimated)</li>
       </ul>
     </details>
 
     <ul id="features" class="features"></ul>
   </main>
 
+  <aside id="log-panel" class="log-panel" aria-label="Log">
+    <header>
+      <strong>Log</strong>
+      <span class="log-actions">
+        <button id="log-copy" type="button">Copy</button>
+        <button id="log-clear" type="button">Clear</button>
+        <button id="log-toggle" type="button">Hide</button>
+      </span>
+    </header>
+    <ol id="log-list"></ol>
+  </aside>
+
+  <script>
+    // Catches problems before main.js runs (for example three.js failing to download).
+    (function () {
+      function add(text) {
+        var list = document.getElementById('log-list');
+        if (!list) return;
+        var li = document.createElement('li');
+        li.className = 'error';
+        li.textContent = text;
+        list.appendChild(li);
+      }
+      window.addEventListener('error', function (e) {
+        if (window.__tableCubeLoaded) return;
+        var src = e.target && (e.target.src || e.target.href);
+        add('Startup error: ' + (e.message || (src ? 'could not load ' + src : 'unknown')));
+      }, true);
+      setTimeout(function () {
+        if (!window.__tableCubeLoaded) {
+          add('main.js has not started after 8 s. Is the headset online? three.js is loaded from a CDN.');
+        }
+      }, 8000);
+    })();
+  </script>
   <script type="module" src="main.js"></script>
 </body>
 </html>

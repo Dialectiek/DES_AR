@@ -8,6 +8,11 @@
   --border: #dde1e6;
   --ok: #1f8f4e;
   --no: #b3261e;
+  --log-bg: #ffffff;
+  --log-info: #2b3138;
+  --log-warn: #8a5a00;
+  --log-error: #b3261e;
+  --log-old: #8b939c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,6 +24,11 @@
     --border: #2c323a;
     --ok: #4cc27f;
     --no: #ff7b72;
+    --log-bg: #15191e;
+    --log-info: #d6dbe0;
+    --log-warn: #f2c14e;
+    --log-error: #ff7b72;
+    --log-old: #6c757f;
   }
 }
 
@@ -36,6 +46,16 @@ body {
   display: grid;
   place-items: center;
   padding: 24px 16px;
+  /* leave room for the log panel at the bottom */
+  padding-bottom: calc(45vh + 24px);
+}
+
+/* Wide screens (incl. the Magic Leap 2 browser): log on the right, card centred in the rest. */
+@media (min-width: 900px) {
+  body {
+    padding-bottom: 24px;
+    padding-right: 456px;
+  }
 }
 
 /* The WebGL canvas is only used inside the headset session. */
@@ -51,9 +71,21 @@ canvas { display: none; }
 }
 
 h1 { margin: 0 0 4px; font-size: 1.6rem; }
-.lead { margin: 0 0 20px; color: var(--muted); }
+.lead { margin: 0 0 16px; color: var(--muted); }
 
-button {
+fieldset {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+legend { padding: 0 6px; font-weight: 600; }
+fieldset label { display: block; padding: 3px 0; cursor: pointer; }
+fieldset input { margin-right: 8px; }
+
+.buttons { display: grid; gap: 8px; }
+
+.panel button {
   width: 100%;
   padding: 14px 18px;
   border: 0;
@@ -64,7 +96,14 @@ button {
   font-weight: 600;
   cursor: pointer;
 }
-button:disabled { opacity: 0.5; cursor: default; }
+.panel button.secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  font-size: 1rem;
+  padding: 10px 18px;
+}
+.panel button:disabled { opacity: 0.5; cursor: default; }
 
 .status { min-height: 1.5em; margin: 12px 0; color: var(--muted); }
 
@@ -76,3 +115,55 @@ code { font-size: 0.9em; }
 .features { list-style: none; padding: 0; margin: 16px 0 0; font-size: 0.9rem; }
 .features li.ok::before { content: "✓ "; color: var(--ok); }
 .features li.no::before { content: "✗ "; color: var(--no); }
+
+/* ---------- Log panel, bottom right ---------- */
+.log-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  width: min(432px, calc(100vw - 24px));
+  max-height: 45vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--log-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 10;
+}
+@media (min-width: 900px) {
+  .log-panel { max-height: calc(100vh - 24px); }
+}
+
+.log-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.log-actions { display: flex; gap: 6px; }
+.log-actions button {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+#log-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px;
+  overflow-y: auto;
+  font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  word-break: break-word;
+}
+#log-list li { padding: 1px 0; color: var(--log-info); }
+#log-list li.warn { color: var(--log-warn); }
+#log-list li.error { color: var(--log-error); font-weight: 600; }
+#log-list li.old { color: var(--log-old); font-weight: 400; }
+
+.log-panel.collapsed #log-list { display: none; }
