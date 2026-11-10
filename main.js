@@ -28,7 +28,8 @@
 
 import * as THREE from 'three';
 import {
-  dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex,
+  dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex, describeColour,
+  worldToPixel, samplePatch, nearestColour, balanceColour, alignProjection, sampleSlots, pixelShiftToNdc,
 } from './cards.js';
 import { EnergySystem } from './system.js';
 import {
@@ -69,9 +70,17 @@ const CONFIG = {
   touchDistance: 0.04,       // corner calibration: controller tip this close to the table = touching
   scanWidth: 320,            // camera image size for card scans (cards are small)
   scanHeight: 240,
-  scanFrames: 5,             // camera frames per scan…
+  scanFrames: 6,             // camera frames per scan…
   scanFrameGapMs: 100,       // …this far apart
-  scanMinFrames: 3,          // a card must show up in this many of them
+  scanMinFrames: 4,          // a card must show up in this many of them
+  // The camera image is a little older than the head pose it comes with: while the head
+  // turns, cards land in the wrong place. Frames taken while turning faster are skipped.
+  scanMaxTurnDegPerS: 20,
+  slotInnerRadius: 0.025,    // colour squares: sample only the middle (radius, m) of each card
+  slotSearch: 0.1,           // …and look up to this far (m) for the camera image shift
+  slotFrames: 3,             // camera frames per colour calibration
+  patchRadius: 0.015,        // card colour = median of the camera pixels within this (m) of the aimed point
+  whiteRadius: 0.2,          // table white for white balance: from this far (m) around it
   scanTimeoutMs: 4000,       // give up when the camera doesn't deliver
   bumperHoldMs: 1500,        // hold the bumper this long to calibrate again
   flipCameraY: params.get('flipy') === '1',
@@ -158,6 +167,11 @@ function remoteLog(line) {
 const info = (m, d) => log('info', m, d);
 const warn = (m, d) => log('warn', m, d);
 const error = (m, d) => log('error', m, d);
+
+// Bump on every change: the log and the page show it, so we can tell whether the headset
+// runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
+const APP_VERSION = 'slots v4';
+info('Table Cube version ' + APP_VERSION);
 
 const onceKeys = new Set();
 function once(key, level, msg, data) {
@@ -535,18 +549,70 @@ function makeDebugPanel(w, h) {
   return {
     get visible() { return mesh.visible; },
     set visible(v) { mesh.visible = v; },
-    // Card scan: dimmed camera image, card pixels painted in their card colour.
+    // Card scan: dimmed camera image with
+    //   - cyan line: where the calibrated table is according to the camera model. It must
+    //     lie on the real table edges in the picture; if not, the camera image and the
+    //     head pose don't line up and cards get placed in the wrong spot.
+    //   - accepted cards in their card colour, rejected blobs in a darker shade.
     //   colours: [r, g, b] per colour label (label 1 = colours[0]).
-    updateCards(pixels, labelMap, colours) {
+    updateCards(pixels, det, colours) {
+      const { labelMap, blobMap, inside } = det;
       const n = w * h;
       for (let i = 0, j = 0; i < n; i++, j += 4) {
         const c = labelMap[i] ? colours[labelMap[i] - 1] : null;
-        if (c) {
-          data[j] = c[0]; data[j + 1] = c[1]; data[j + 2] = c[2];
+        const x = i % w;
+        const edge = inside[i] && (x === 0 || x === w - 1 || i < w || i >= n - w ||
+          !inside[i - 1] || !inside[i + 1] || !inside[i - w] || !inside[i + w]);
+        if (edge) {
+          data[j] = 0; data[j + 1] = 230; data[j + 2] = 255;
+        } else if (c && blobMap[i]) {
+          const k = blobMap[i] === 1 ? 1 : 0.4;
+          data[j] = c[0] * k; data[j + 1] = c[1] * k; data[j + 2] = c[2] * k;
         } else {
-          data[j] = pixels[j] * 0.6; data[j + 1] = pixels[j + 1] * 0.6; data[j + 2] = pixels[j + 2] * 0.6;
+          const k = inside[i] ? 0.6 : 0.3;
+          data[j] = pixels[j] * k; data[j + 1] = pixels[j + 1] * k; data[j + 2] = pixels[j + 2] * k;
         }
         data[j + 3] = 255;
+      }
+      texture.needsUpdate = true;
+    },
+    // Colour calibration: camera image, magenta cross = where the user pointed (camera
+    // model), cyan cross = the card found there. Their distance = camera misalignment.
+    updateSample(pixels, at, sample) {
+      for (let j = 0; j < w * h * 4; j += 4) {
+        data[j] = pixels[j] * 0.7; data[j + 1] = pixels[j + 1] * 0.7; data[j + 2] = pixels[j + 2] * 0.7; data[j + 3] = 255;
+      }
+      const cross = (cx, cy, r, g, b) => {
+        const x0 = Math.round(cx), y0 = Math.round(cy);
+        for (let d = -6; d <= 6; d++) {
+          for (const [x, y] of [[x0 + d, y0], [x0, y0 + d]]) {
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            const j = (y * w + x) * 4;
+            data[j] = r; data[j + 1] = g; data[j + 2] = b;
+          }
+        }
+      };
+      cross(at.px, at.py, 255, 0, 200);
+      if (sample) cross(sample.px, sample.py, 0, 230, 255);
+      texture.needsUpdate = true;
+    },
+    // Colour squares: magenta = where each square should be (camera model), cyan = where
+    // its card was found (after the measured shift).
+    updateSlots(pixels, slots, r) {
+      this.updateSample(pixels, slots[0], null);
+      const cross = (cx, cy, c) => {
+        const x0 = Math.round(cx), y0 = Math.round(cy);
+        for (let d = -5; d <= 5; d++) {
+          for (const [x, y] of [[x0 + d, y0], [x0, y0 + d]]) {
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            const j = (y * w + x) * 4;
+            data[j] = c[0]; data[j + 1] = c[1]; data[j + 2] = c[2];
+          }
+        }
+      };
+      for (const s of slots) {
+        cross(s.px, s.py, [255, 0, 200]);
+        if (r) cross(s.px + r.shift.x, s.py + r.shift.y, [0, 230, 255]);
       }
       texture.needsUpdate = true;
     },
@@ -1298,6 +1364,9 @@ function startCalibration(reason) {
   resetBuild();
   outline.visible = false;
   calibGroup.visible = true;
+  colourCal.done = false;
+  colourCal.pending = null;
+  slotGroup.visible = false;
   info('Corner calibration started', reason);
 }
 
@@ -1378,6 +1447,7 @@ function finishCalibration() {
   if (!state.features['camera-access']) {
     warn('No camera feed: card scanning is off. Start again with the camera feed enabled.');
   }
+  startColourCalibration('table calibrated');
 }
 
 // Bumper (top button). During calibration: undo the last corner (on press).
@@ -1396,6 +1466,14 @@ function bumperDown(src, via) {
   bumper.fired = false;
   if (!calib.done) {
     bumper.fired = true;
+    undoCorner();
+  } else if (!colourCal.done) { // colour squares: back to the last corner
+    bumper.fired = true;
+    calib.done = false;
+    state.locked = false;
+    outline.visible = false;
+    slotGroup.visible = false;
+    colourCal.pending = null;
     undoCorner();
   }
 }
@@ -1516,6 +1594,7 @@ function resetBuild() {
   build.links?.clear();
   syncScene();
   build.scan = null;
+  build.tap = null;
   build.selected = null;
   build.hovered = null;
   cornerEdges.set([]);
@@ -1542,7 +1621,10 @@ function startScan() {
     return;
   }
   ensureSystem();
-  build.scan = { frames: [], startedAt: performance.now(), lastFrameAt: 0, rejected: [] };
+  build.scan = {
+    frames: [], startedAt: performance.now(), lastFrameAt: 0, rejected: [],
+    lastQ: null, lastQAt: 0, skippedMoving: 0, camera: null,
+  };
   info('Scanning for cards…');
 }
 
@@ -1553,21 +1635,38 @@ function scanStep(frame, pose) {
     if (scan.frames.length) finishScan();
     else {
       build.scan = null;
-      say('Scan failed: no camera image', 'warn');
+      say(scan.skippedMoving ? 'Scan failed: hold your head still while scanning' : 'Scan failed: no camera image', 'warn');
     }
     return;
   }
-  if (now - scan.lastFrameAt < CONFIG.scanFrameGapMs) return;
   const view = pose.views.find((v) => v.camera);
   if (!view) return;
+  // Head turn speed, measured every frame.
+  const o = view.transform.orientation;
+  const q = new THREE.Quaternion(o.x, o.y, o.z, o.w);
+  const turning = scan.lastQ && (THREE.MathUtils.radToDeg(scan.lastQ.angleTo(q)) * 1000) /
+    Math.max(1, now - scan.lastQAt) > CONFIG.scanMaxTurnDegPerS;
+  scan.lastQ = q;
+  scan.lastQAt = now;
+  if (now - scan.lastFrameAt < CONFIG.scanFrameGapMs) return;
+  if (turning) {
+    scan.skippedMoving++;
+    build.message = 'Hold your head still…';
+    build.messageUntil = now + 800;
+    return;
+  }
   const pixels = readCameraPixels(frame, view, 'cards');
   if (!pixels) return;
   scan.lastFrameAt = now;
+  if (!scan.camera) {
+    const p = view.transform.position;
+    scan.camera = [p.x, p.y, p.z].map(r3);
+  }
   const t = state.table;
   const table = { cx: t.pos.x, cz: t.pos.z, y: t.pos.y, yaw: t.yaw, length: t.length, width: t.width };
   const det = detectCards(
     pixels, CONFIG.scanWidth, CONFIG.scanHeight,
-    view.projectionMatrix, view.transform.matrix,
+    alignProjection(view.projectionMatrix, state.camAlign), view.transform.matrix,
     table, components.colourTable, components.config.card, { maxDistance: CONFIG.maxDistance }
   );
   scan.frames.push(det.detections);
@@ -1578,34 +1677,41 @@ function scanStep(frame, pose) {
       const col = new THREE.Color(displayColour(components.config, c.name));
       return [col.r * 255, col.g * 255, col.b * 255];
     });
-    cardDebugPanel.updateCards(pixels, det.labelMap, rgb);
+    cardDebugPanel.updateCards(pixels, det, rgb);
   }
   if (scan.frames.length >= CONFIG.scanFrames) finishScan();
 }
 
 const r3 = (v) => +v.toFixed(3);
 // Measured (white-balanced) colour and its distance to the reference in components.json.
-const colourOf = (c) => ({ measured: rgbToHex(c.rgb), dist: Math.round(c.dist) });
+// measured = median white-balanced colour (copy it to "seen" in components.json to tune),
+// lch = its lightness / chroma / hue, score = match (0 = perfect, accepted up to maxScore).
+const colourOf = (c) => ({ measured: rgbToHex(c.rgb), lch: describeColour(c.rgb), score: +c.dist.toFixed(2) });
+const cm = (v) => +(v * 100).toFixed(1);
 
 function finishScan() {
   const scan = build.scan;
   build.scan = null;
   const sys = build.system;
+  const same = components.config.card?.sameCardDistance_m ?? 0.08;
   const minFrames = Math.min(CONFIG.scanMinFrames, Math.ceil(scan.frames.length * 0.6));
-  const cards = mergeScans(scan.frames, { radius: 0.04, minFrames });
-  const fresh = filterNew(cards, sys.nodes, components.config.card?.sameCardDistance_m ?? 0.06);
+  const cards = mergeScans(scan.frames, { radius: Math.min(0.06, same), minFrames });
+  const fresh = filterNew(cards, sys.nodes, same);
   info('Scan finished', {
-    frames: scan.frames.length, cards: cards.length, new: fresh.length,
-    tableColour: scan.tableColour ? rgbToHex(scan.tableColour) : 'not seen',
+    frames: scan.frames.length, skippedWhileTurning: scan.skippedMoving, cards: cards.length, new: fresh.length,
+    tableColour: scan.tableColour ? rgbToHex(scan.tableColour) : 'not seen', camera: scan.camera,
   });
   for (const c of cards) {
     info(`  card ${c.colour}${fresh.includes(c) ? ' (new)' : ''}`, {
-      x: r3(c.x), z: r3(c.z), area_cm2: +(c.area * 1e4).toFixed(1), ...colourOf(c), frames: c.frames,
+      x: r3(c.x), z: r3(c.z), size_cm: `${cm(c.sides[0])} x ${cm(c.sides[1])}`, ...colourOf(c),
+      frames: c.frames, votes: c.votes,
     });
   }
-  // Colour blobs with the wrong size: useful when tuning card sizes and colours.
+  // Blobs that were not accepted as cards, biggest first: useful for tuning.
   for (const d of [...scan.rejected].sort((a, b) => b.area - a.area).slice(0, 3)) {
-    info(`  not card-sized: ${d.colour}`, { x: r3(d.x), z: r3(d.z), area_cm2: +(d.area * 1e4).toFixed(1), ...colourOf(d) });
+    info(`  not a card (${d.reason}): ${d.colour ?? '?'}`, {
+      x: r3(d.x), z: r3(d.z), size_cm: `${cm(d.sides[0])} x ${cm(d.sides[1])}`, fill: +d.fill.toFixed(2), ...colourOf(d),
+    });
   }
   const added = sys.addCards(fresh);
   syncScene();
@@ -1651,9 +1757,50 @@ function buildTrigger(src) {
   if (now - build.lastTrigger < 300) return; // double press
   build.lastTrigger = now;
   if (src && calib.sources.has(src)) calib.active = src;
-  if (build.scan) return; // busy
+  if (build.scan || build.tap) return; // busy
   if (build.hovered !== null) clickAsset(build.hovered);
-  else startScan();
+  else startTap();
+}
+
+// Trigger on a card: its colour (patch where the ray hits, headset camera) is matched to
+// the nearest calibrated colour, and that colour's asset is placed where the ray hits.
+function startTap() {
+  if (!components.config) return say('Still loading components…', 'warn');
+  if (!state.features['camera-access']) return say('No camera feed: cannot read card colours', 'warn');
+  const s = pickActiveSource();
+  const aim = s ? calib.sources.get(s)?.aim : null;
+  if (!aim?.point) return say('Point the ray at a card on the table', 'warn');
+  ensureSystem();
+  build.tap = { point: aim.point.clone(), tries: 0 };
+}
+
+function tapStep(frame, pose) {
+  const tap = build.tap;
+  if (++tap.tries > 8) {
+    build.tap = null;
+    return say('No camera image, press the trigger again', 'warn');
+  }
+  const r = samplePoint(frame, pose, tap.point);
+  if (!r) return;
+  build.tap = null;
+  if (r.error) return say('That spot is ' + r.error, 'warn');
+  const local = tableAnchor.worldToLocal(tap.point.clone());
+  const t = state.table;
+  if (Math.abs(local.x) > t.length / 2 + 0.03 || Math.abs(local.z) > t.width / 2 + 0.03) {
+    return say('That is outside the table area', 'warn');
+  }
+  const table = components.colourTable;
+  const match = nearestColour(r.seen, table);
+  info(`Tap: ${match.name}`, {
+    x: r3(local.x), z: r3(local.z), raw: rgbToHex(r.raw), seen: rgbToHex(r.seen), lch: describeColour(r.seen),
+    distanceTo: match.all, tableWhite: rgbToHex(r.white),
+  });
+  const sys = build.system;
+  const near = sys.nodes.find((n) => Math.hypot(n.x - local.x, n.z - local.z) < (components.config.card?.sameCardDistance_m ?? 0.08));
+  if (near) return say(`There is already a ${sys.labelOf(near)} here`, 'warn');
+  const added = sys.addCards([{ colour: match.name, x: local.x, z: local.z }]);
+  syncScene();
+  say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')} (${match.name})`);
 }
 
 const _a = new THREE.Vector3();
@@ -1664,6 +1811,7 @@ function buildStep(time, frame, pose) {
   const dt = build.lastTime ? Math.min(0.1, (time - build.lastTime) / 1000) : 0;
   build.lastTime = time;
   if (build.scan) scanStep(frame, pose);
+  if (build.tap) tapStep(frame, pose);
 
   // What the controller points at: an asset, or a point on the table.
   const src = pickActiveSource();
@@ -1702,18 +1850,271 @@ function buildStep(time, frame, pose) {
   const sys = build.system;
   let line1;
   if (performance.now() < build.messageUntil) line1 = build.message;
-  else if (build.scan) line1 = 'Scanning cards…';
+  else if (build.scan || build.tap) line1 = 'Reading the card colour…';
   else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
   else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
-  else if (!sys?.nodes.length) line1 = 'Place cards, aim at the table, press trigger';
-  else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on table = scan`;
+  else if (!sys?.nodes.length) line1 = 'Point at a card, press trigger to add it';
+  else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on a card = add`;
   const camNote = state.features['camera-access'] ? '' : 'no camera: no scanning · ';
   setHud(line1, camNote + 'trigger on asset = connect · bumper = undo · hold = recalibrate');
+}
+
+// ---------------------------------------------------------------------------
+// Colour calibration with slots (after the table corners): 4 squares of 10 x 10 cm are
+// drawn on the table, one per calibration colour. The user lays each card in its square
+// and presses the trigger once. Only the centre of each card is sampled, so a card that
+// lies a bit off doesn't matter. The colours as the camera sees them in this light become
+// the references. Because the app knows where the cards are, it also measures how far
+// the camera image is shifted against the head pose, and corrects later taps for it
+// (?align=0 turns the correction off).
+// ---------------------------------------------------------------------------
+const SLOT_SIZE = 0.10;
+const colourCal = {
+  order: [],            // colour names, from components.json calibrationColours
+  slots: [],            // [{ name, x, z }] table-local slot centres
+  frames: [],           // sampleSlots results, one per camera frame
+  pending: null,        // { tries, lastAt } while sampling
+  done: false,
+  lastTrigger: 0,
+};
+const slotGroup = new THREE.Group();
+slotGroup.visible = false;
+tableAnchor.add(slotGroup);
+
+function calibrationColours() {
+  const list = components.config?.calibrationColours;
+  return Array.isArray(list) && list.length ? list.filter((c) => components.config.colours[c]) : [];
+}
+
+// Slot centres: a row along the table edge nearest to the user, or a 2 x 2 grid in the
+// middle when the table is too short for a row.
+function slotLayout(names) {
+  const t = state.table;
+  const head = headInTable();
+  const gap = 0.05;
+  const rowLen = names.length * SLOT_SIZE + (names.length - 1) * gap;
+  if (t.length >= rowLen + 0.06 && t.width >= SLOT_SIZE + 0.1) {
+    const side = head.z >= 0 ? 1 : -1; // the long edge the user stands at
+    const z = side * (t.width / 2 - 0.04 - SLOT_SIZE / 2);
+    // Left to right as the user sees it.
+    return names.map((name, i) => ({ name, x: side * (-rowLen / 2 + SLOT_SIZE / 2 + i * (SLOT_SIZE + gap)), z }));
+  }
+  const cols = 2, step = SLOT_SIZE + gap;
+  return names.map((name, i) => ({
+    name,
+    x: ((i % cols) - (cols - 1) / 2) * step,
+    z: (Math.floor(i / cols) - (Math.ceil(names.length / cols) - 1) / 2) * step,
+  }));
+}
+
+function slotLabel(text, colour) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.font = '700 44px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = colour;
+  ctx.fillText(text, 128, 34);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sprite.scale.set(0.1, 0.025, 1);
+  return sprite;
+}
+
+function buildSlotVisuals() {
+  for (const c of [...slotGroup.children]) {
+    slotGroup.remove(c);
+    c.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
+  }
+  const half = SLOT_SIZE / 2;
+  for (const s of colourCal.slots) {
+    const colour = displayColour(components.config, s.name);
+    const g = new THREE.Group();
+    g.position.set(s.x, 0.002, s.z);
+    const pts = [[-half, -half], [half, -half], [half, half], [-half, half], [-half, -half]]
+      .map(([x, z]) => new THREE.Vector3(x, 0, z));
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: colour })));
+    // Centre mark: the part that is sampled.
+    g.add(new THREE.Mesh(
+      new THREE.RingGeometry(0.022, 0.026, 32).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.5 })
+    ));
+    const label = slotLabel(s.name.toUpperCase(), colour);
+    label.position.set(0, 0.03, 0);
+    g.add(label);
+    slotGroup.add(g);
+  }
+}
+
+function startColourCalibration(reason) {
+  colourCal.order = calibrationColours();
+  colourCal.frames = [];
+  colourCal.pending = null;
+  state.camAlign = null;
+  if (components.config) components.colourTable = buildColourTable(components.config);
+  colourCal.done = !colourCal.order.length || !state.features['camera-access'];
+  if (colourCal.done) {
+    slotGroup.visible = false;
+    info('Colour calibration skipped', !state.features['camera-access'] ? 'no camera feed' : 'no calibrationColours');
+    return;
+  }
+  colourCal.slots = slotLayout(colourCal.order);
+  buildSlotVisuals();
+  slotGroup.visible = true;
+  info('Colour calibration started', {
+    reason,
+    slots: colourCal.slots.map((s) => `${s.name} (${r3(s.x)}, ${r3(s.z)})`),
+  });
+}
+
+function colourTrigger(src) {
+  if (!acceptInput(src, 'pinch')) return;
+  const now = performance.now();
+  if (now - colourCal.lastTrigger < 350 || colourCal.pending) return;
+  colourCal.lastTrigger = now;
+  colourCal.frames = [];
+  colourCal.pending = { tries: 0, lastAt: 0 };
+}
+
+// Every frame while sampling: reads the camera (a few frames, 120 ms apart).
+function colourSampleStep(frame, pose) {
+  const p = colourCal.pending;
+  const now = performance.now();
+  if (now - p.lastAt < 120) return;
+  if (++p.tries > 20) {
+    colourCal.pending = null;
+    say('No camera image, press the trigger again', 'warn');
+    return;
+  }
+  const view = pose.views.find((v) => v.camera);
+  if (!view) return;
+  const pixels = readCameraPixels(frame, view, 'cards');
+  if (!pixels) return;
+  p.lastAt = now;
+  const W = CONFIG.scanWidth, H = CONFIG.scanHeight;
+  const P = view.projectionMatrix, M = view.transform.matrix;
+  tableAnchor.updateMatrixWorld();
+  const slots = [];
+  for (const s of colourCal.slots) {
+    const at = worldToPixel(P, M, W, H, tableAnchor.localToWorld(new THREE.Vector3(s.x, 0, s.z)));
+    if (!at || at.px < 0 || at.py < 0 || at.px >= W || at.py >= H) {
+      colourCal.pending = null;
+      say('Look at the table so all 4 squares are in view, then press the trigger', 'warn');
+      return;
+    }
+    slots.push({ px: at.px, py: at.py, pxPerM: ((P[0] * W) / 2 + (P[5] * H) / 2) / 2 / at.depth });
+  }
+  const r = sampleSlots(pixels, W, H, slots, { inner: CONFIG.slotInnerRadius, search: CONFIG.slotSearch });
+  if (cardDebugPanel.visible) cardDebugPanel.updateSlots(pixels, slots, r);
+  if (!r) return;
+  r.pxPerM = slots.reduce((s, sl) => s + sl.pxPerM, 0) / slots.length;
+  colourCal.frames.push(r);
+  if (colourCal.frames.length >= CONFIG.slotFrames) {
+    colourCal.pending = null;
+    finishColourCalibration();
+  }
+}
+
+function finishColourCalibration() {
+  const frames = colourCal.frames;
+  const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+  const shiftPx = { x: med(frames.map((f) => f.shift.x)), y: med(frames.map((f) => f.shift.y)) };
+  const ppm = med(frames.map((f) => f.pxPerM));
+  const table0 = buildColourTable(components.config);
+  const seen = {};
+  const report = {};
+  const weak = [];
+  colourCal.order.forEach((name, i) => {
+    const got = frames.map((f) => f.samples[i] && { rgb: f.samples[i].rgb, white: f.white, contrast: f.samples[i].contrast }).filter(Boolean);
+    if (!got.length) return;
+    const raw = [0, 1, 2].map((c) => med(got.map((g) => g.rgb[c])));
+    const white = [0, 1, 2].map((c) => med(got.map((g) => g.white[c])));
+    const contrast = med(got.map((g) => g.contrast));
+    seen[name] = balanceColour(raw, white, table0);
+    report[name] = { raw: rgbToHex(raw), seen: rgbToHex(seen[name]), lch: describeColour(seen[name]), contrast };
+    if (contrast < 15) weak.push(name);
+  });
+  if (Object.keys(seen).length < colourCal.order.length) {
+    say('Could not read every square: press the trigger again', 'warn');
+    return;
+  }
+  components.colourTable = buildColourTable(components.config, { only: colourCal.order, seen });
+  const W = CONFIG.scanWidth, H = CONFIG.scanHeight;
+  const ndc = pixelShiftToNdc(shiftPx.x, shiftPx.y, W, H);
+  state.camAlign = params.get('align') === '0' ? null : { shiftX: ndc.x, shiftY: ndc.y };
+  info('Colours calibrated', {
+    colours: report,
+    cameraShift_cm: [+(shiftPx.x / ppm * 100).toFixed(1), +(shiftPx.y / ppm * 100).toFixed(1)],
+    cameraShift_px: [shiftPx.x, shiftPx.y],
+    score: { best: +med(frames.map((f) => f.score)).toFixed(1), noShift: +med(frames.map((f) => f.scoreNoShift)).toFixed(1) },
+    correctionApplied: Boolean(state.camAlign),
+  });
+  if (weak.length) {
+    warn('These squares look like the table: is the card there?', weak);
+    say(`No card seen in: ${weak.join(', ')}. Check the squares, press the trigger again`, 'warn');
+    return;
+  }
+  const t = components.colourTable;
+  const close = [];
+  for (let i = 0; i < t.colours.length; i++) {
+    for (let j = i + 1; j < t.colours.length; j++) {
+      const a = t.colours[i].lab, b = t.colours[j].lab;
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      if (d < 15) close.push(`${t.colours[i].name}/${t.colours[j].name} (${d.toFixed(0)})`);
+    }
+  }
+  if (close.length) warn('These calibrated colours look very alike to the camera', close);
+  colourCal.done = true;
+  slotGroup.visible = false;
+  say('Colours calibrated: point at a card, press trigger to add it');
+}
+
+// Colour right where the ray hits (headset camera, corrected for the measured camera
+// shift), white-balanced against the table around it. Returns { seen, raw, white, at }
+// or { error }, or null while the camera image isn't there yet (try again next frame).
+function samplePoint(frame, pose, point) {
+  const view = pose.views.find((v) => v.camera);
+  if (!view) return null;
+  const pixels = readCameraPixels(frame, view, 'cards');
+  if (!pixels) return null;
+  const W = CONFIG.scanWidth, H = CONFIG.scanHeight;
+  const P = alignProjection(view.projectionMatrix, state.camAlign), M = view.transform.matrix;
+  const at = worldToPixel(P, M, W, H, point);
+  if (!at || at.px < 0 || at.py < 0 || at.px >= W || at.py >= H) return { error: 'not in the camera view: look at it' };
+  const pxPerM = (P[0] * W) / 2 / at.depth;
+  const s = samplePatch(pixels, W, H, at.px, at.py, CONFIG.patchRadius * pxPerM, CONFIG.whiteRadius * pxPerM);
+  if (cardDebugPanel.visible) cardDebugPanel.updateSample(pixels, at, null);
+  if (!s) return { error: 'could not read the camera there' };
+  return { seen: balanceColour(s.rgb, s.white, components.colourTable), raw: s.rgb, white: s.white, at, pixels: s.count };
+}
+
+function coloursStep(frame, pose) {
+  if (!colourCal.order.length) {
+    setHud('Loading the card colours…', components.error ? 'components.json failed, see the log' : '');
+    return;
+  }
+  if (colourCal.pending) colourSampleStep(frame, pose);
+  if (colourCal.done) return;
+  laser.set([]);
+  aimCursor.visible = false;
+  cornerEdges.set([]);
+  let line1 = `Lay the cards in their squares: ${colourCal.order.join(', ')}. Then press trigger`;
+  if (performance.now() < build.messageUntil) line1 = build.message;
+  setHud(line1, colourCal.pending ? 'reading the camera… hold still'
+    : `look at all 4 squares · bumper = back to the corners · ${APP_VERSION}`);
 }
 
 function cornersStep(time, frame, pose, refSpace) {
   pollControllerButtons();
   for (const [src, entry] of calib.sources) entry.aim = aimPoint(frame, refSpace, src, entry);
+  if (calib.done && !colourCal.done) {
+    if (!colourCal.order.length && components.config) startColourCalibration('components loaded');
+    coloursStep(frame, pose);
+    return;
+  }
   if (calib.done) {
     buildStep(time, frame, pose);
     return;
@@ -1968,8 +2369,9 @@ function gazeStep(frame, refSpace) {
 
 function onSelect(e) {
   if (state.mode === 'corners') {
-    if (calib.done) buildTrigger(e?.inputSource);
-    else placeCorner(e?.inputSource);
+    if (!calib.done) placeCorner(e?.inputSource);
+    else if (!colourCal.done) colourTrigger(e?.inputSource);
+    else buildTrigger(e?.inputSource);
     return;
   }
   if (state.mode === 'camera') {
@@ -2228,7 +2630,10 @@ async function startAR(requested) {
   for (const s of session.inputSources) trackInputSource(s);
   if (setup === 'corners') {
     state.mode = 'corners';
+    info('Session uses version ' + APP_VERSION);
     startCalibration('session start');
+    colourCal.done = false; // colour squares come after the corners
+    colourCal.order = [];
   } else {
     state.mode = 'camera';
     outline.visible = true;
