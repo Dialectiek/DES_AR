@@ -1,6 +1,6 @@
-// Asset labels: a small floating panel with the name of every asset in the diorama.
-// Point at one and press the trigger (or click it in ?preview=1) and the rest of its
-// information drops down: what it is, its energy role and ratings, its size, where the
+// Asset labels: click an asset in the diorama (controller trigger, or the mouse in
+// ?preview=1) and a small floating panel with its name appears above it; click the asset
+// again to hide it. Click the name and the rest of its information drops down: what it is, its energy role and ratings, its size, where the
 // model comes from and the energy flows it takes part in. Opening one closes the others.
 //
 // Panels are sprites, so they always face you, and they have a fixed real-world size, so
@@ -247,7 +247,8 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
   group.name = 'asset labels';
   const labels = [];
   const sprites = [];
-  let hovered = null;
+  const assetMeshes = []; // the models' meshes: clicking one shows its label
+  let hovered = null;     // { label, point, on: 'label' | 'asset' } under the pointer
 
   const nameOf = (id) => {
     const it = items.get(id);
@@ -312,6 +313,9 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
     label.sprite.center.set(0.5, 1); // hangs from its top edge, so the details drop down
     label.sprite.name = 'label ' + id;
     label.sprite.userData.assetLabel = label;
+    label.sprite.visible = false; // appears once its asset is clicked
+    label.model = item.object;
+    item.object.traverse((o) => { if (o.isMesh) assetMeshes.push(o); o.userData.assetLabel = label; });
     apply(label);
     group.add(label.sprite);
     labels.push(label);
@@ -342,19 +346,48 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
       }
     },
 
-    // The panel nearest along the raycaster's ray: { label, point } or null.
+    // What the raycaster's ray points at: a visible name panel first (they are drawn on
+    // top), otherwise the nearest asset model. { label, point, on: 'label' | 'asset' } or null.
     // Sprites are raycast as seen from raycaster.camera, so that must be set.
     pick(raycaster) {
-      const hit = raycaster.intersectObjects(sprites, false)[0];
-      return hit ? { label: hit.object.userData.assetLabel, point: hit.point } : null;
+      const shown = sprites.filter((s) => s.visible);
+      const onLabel = shown.length ? raycaster.intersectObjects(shown, false)[0] : null;
+      if (onLabel) return { label: onLabel.object.userData.assetLabel, point: onLabel.point, on: 'label' };
+      const onAsset = raycaster.intersectObjects(assetMeshes, false)[0];
+      return onAsset ? { label: onAsset.object.userData.assetLabel, point: onAsset.point, on: 'asset' } : null;
     },
 
-    setHover(label) {
-      if (label === hovered) return;
-      const old = hovered;
-      hovered = label;
+    // hit: from pick(), or null. Only a name panel under the pointer gets highlighted.
+    setHover(hit) {
+      const label = hit?.on === 'label' ? hit.label : null;
+      const old = hovered?.on === 'label' ? hovered.label : null;
+      hovered = hit;
+      if (label === old) return;
       if (old) { old.hovered = false; redraw(old); }
       if (label) { label.hovered = true; redraw(label); }
+    },
+
+    // Click / trigger on a pick() result: an asset shows or hides its name,
+    // a name opens or closes its details.
+    activate(hit) {
+      if (hit.on === 'asset') this.setShown(hit.label, !hit.label.sprite.visible);
+      else this.toggle(hit.label);
+    },
+
+    setShown(label, shown) {
+      if (label.sprite.visible === shown) return;
+      if (!shown) {
+        label.open = false;
+        label.p = 0;
+        label.hovered = false;
+        redraw(label);
+      }
+      label.sprite.visible = shown;
+      log?.info(shown ? 'Asset name shown' : 'Asset name hidden', label.name);
+    },
+
+    hideAll() {
+      for (const l of labels) this.setShown(l, false);
     },
 
     // Open or close one panel's details; opening one closes the others.

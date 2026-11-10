@@ -1495,7 +1495,7 @@ function cornersStep(frame, refSpace) {
     const t = state.table;
     setHud(
       `Table calibrated  ·  ${t.length.toFixed(2)} × ${t.width.toFixed(2)} m`,
-      (assetLabels ? 'trigger on a name = details   ·   ' : '') + 'bumper = calibrate again'
+      (assetLabels ? 'trigger on an asset = name   ·   ' : '') + 'bumper = calibrate again'
     );
     return;
   }
@@ -1564,7 +1564,7 @@ function labelsStep(frame, refSpace) {
   const src = labelsShown() ? pickActiveSource() : null;
   const ray = src ? sourceRay(frame, refSpace, src) : null;
   const hit = ray ? pickLabel(ray) : null;
-  assetLabels?.setHover(hit?.label ?? null);
+  assetLabels?.setHover(hit);
   if (!ray) {
     labelPointer.set([]);
     return;
@@ -1573,7 +1573,8 @@ function labelsStep(frame, refSpace) {
   labelPointer.line.material.opacity = hit ? 0.9 : 0.3;
 }
 
-// Trigger: show or hide the details of the panel the input points at. True if it hit one.
+// Trigger on an asset: show or hide its name. On a name: show or hide its details.
+// True if it hit either.
 function toggleLabelAt(e) {
   if (!labelsShown()) return false;
   const src = e?.inputSource;
@@ -1583,9 +1584,9 @@ function toggleLabelAt(e) {
     const ray = sourceRay(e.frame, renderer.xr.getReferenceSpace(), src);
     if (ray) hit = pickLabel(ray);
   }
-  const label = hit?.label ?? assetLabels.hovered;
-  if (!label) return false;
-  assetLabels.toggle(label);
+  hit ??= assetLabels.hovered;
+  if (!hit) return false;
+  assetLabels.activate(hit);
   return true;
 }
 
@@ -2177,8 +2178,8 @@ function startPreview() {
   canvas.addEventListener('pointerleave', () => { mouse.inside = false; });
   canvas.addEventListener('click', (e) => {
     const hit = pickAt(e);
-    if (hit) assetLabels.toggle(hit.label);
-    else assetLabels?.closeAll();
+    if (hit) assetLabels.activate(hit);
+    else assetLabels?.hideAll();
   });
 
   let turn = 0, lastTime = 0;
@@ -2188,7 +2189,7 @@ function startPreview() {
       labelRaycaster.setFromCamera(mouse.ndc, camera);
       hit = assetLabels.pick(labelRaycaster);
     }
-    assetLabels?.setHover(hit?.label ?? null);
+    assetLabels?.setHover(hit);
     canvas.style.cursor = hit ? 'pointer' : '';
     if (!hit) turn += (time - (lastTime || time)) * 0.0002;
     lastTime = time;
