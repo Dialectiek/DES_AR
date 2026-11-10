@@ -1,0 +1,956 @@
+
+===== devserver started 2026-11-10T09:37:10.905Z =====
+
+===== devserver started 2026-11-10T09:39:13.148Z =====
+10:50:38.969 #4 [info] Laptop log server found: every log line is also sent there
+10:50:38.917 #1 [info] WebGL context {"xrCompatible":"not reported","antialias":true,"renderer":"ANGLE (Intel, Intel(R) HD Graphics Direct3D11 vs_5_0 ps_5_0), or similar"}
+10:50:38.921 #2 [info] Page loaded {"url":"https://qv96th6s-8000.euw.devtunnels.ms/","secure":true,"ua":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:159.0) Gecko/20100101 Firefox/159.0"}
+10:50:38.921 #3 [error] navigator.xr is missing
+10:50:43.256 #5 [info] Page visibility hidden
+10:51:36.740 #1 [info] WebGL context {"xrCompatible":true,"antialias":true,"renderer":"ANGLE (X.Org, AMD MERO (DRM 3.37.0 5.4.19-android-x86_64 LLVM 10.0), OpenGL ES 3.2)"}
+10:51:36.749 #2 [info] Page loaded {"url":"https://qv96th6s-8000.euw.devtunnels.ms/","secure":true,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/122.0.6261.171 Safari/537.36"}
+10:51:36.755 #3 [info] WebXR support {"immersive-ar":true,"immersive-vr":true,"XRWebGLBinding":true,"getCameraImage":true,"XRRay":true}
+10:51:36.766 #4 [info] Laptop log server found: every log line is also sent there
+10:51:40.436 #5 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection","camera-access"]}
+10:51:45.748 #7 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+10:51:45.745 #6 [info] Session started {"enabledFeatures":["viewer","camera-access","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+10:51:45.814 #9 [info] Renderer attached {"referenceSpace":"local-floor"}
+10:51:45.817 #10 [info] Camera mode: the camera binding is created once the first camera image arrives
+10:51:45.811 #8 [info] Classic layer in use baseLayer missing?
+10:51:45.843 #11 [info] First XR frame
+10:51:45.851 #12 [info] XR render #1 starting
+10:51:45.926 #13 [info] XR render #1 done
+10:51:45.964 #14 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:51:45.968 #15 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:51:45.976 #17 [info] XR render #2 done {"glError":"0x506"}
+10:51:45.993 #18 [info] XR render #3 starting
+10:51:45.997 #19 [info] XR render #3 done {"glError":"0x506"}
+10:51:45.972 #16 [info] XR render #2 starting
+10:51:46.044 #20 [info] Waiting for camera image: no view has a camera yet {"views":2}
+10:51:46.110 #21 [info] XR render #10 starting
+10:51:46.114 #22 [info] XR render #10 done {"glError":"0x506"}
+10:51:46.688 #25 [info] Creating camera binding (XRWebGLBinding)…
+10:51:46.684 #24 [info] Camera view found {"view":0,"eye":"left","size":"640x480","views":2}
+10:51:46.681 #23 [info] Camera image arrived after 634 ms
+10:51:46.699 #26 [info] Camera reader ready
+10:51:46.703 #27 [info] Calling getCameraImage for the first time…
+10:51:46.707 #28 [info] Reading camera pixels for the first time…
+10:51:46.721 #29 [warn] WebGL error after camera read 0x506
+10:51:46.728 #30 [info] First camera frame read {"meanBrightness":65}
+10:51:46.756 #31 [info] Requesting hit-test along the camera ray…
+10:51:46.759 #32 [info] Plane detection active {"planes":46}
+10:51:46.763 #33 [info] Plane orientation seen Vertical
+10:51:46.767 #34 [info] Plane orientation seen Horizontal
+10:51:46.783 #35 [info] Plane orientation seen 
+10:51:46.788 #36 [info] Table height from plane {"y":1.078}
+10:51:46.801 #37 [info] White area rejected too narrow (0.28 m)
+10:51:46.819 #38 [info] Camera-ray hit-test source created
+10:51:46.958 #39 [info] White area rejected not rectangular (fill 0.48)
+10:51:47.099 #40 [info] White area rejected blob not below eye level
+10:51:47.219 #41 [info] XR render #60 starting
+10:51:47.224 #42 [info] XR render #60 done
+10:51:47.719 #43 [info] Table fitted {"size":"1.91 x 0.53 m","corner":0,"fill":1.14,"height":"plane"}
+10:51:49.239 #44 [info] White area rejected too long (4.36 m)
+10:51:50.837 #45 [info] Running {"fps":53,"mode":"camera","locked":false}
+10:51:51.388 #47 [info] XR render #300 done
+10:51:51.377 #46 [info] XR render #300 starting
+10:51:55.846 #48 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:51:56.682 #49 [info] Trigger: detecting the table again
+10:51:56.718 #50 [warn] No measured table height yet, assuming 0.75 m above the floor
+10:52:00.855 #51 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:05.864 #52 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:10.874 #53 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:15.884 #54 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:20.892 #55 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:22.947 #56 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:52:22.951 #57 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:52:23.114 #58 [info] Trigger: detecting the table again
+10:52:25.769 #59 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:52:25.903 #60 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:52:28.475 #61 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:52:30.461 #62 [info] Trigger: detecting the table again
+10:52:30.544 #63 [info] Trigger: detecting the table again
+10:52:30.912 #64 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:31.295 #65 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:52:35.920 #66 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:52:40.930 #67 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:52:43.969 #68 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:52:44.487 #69 [info] Trigger: detecting the table again
+10:52:45.021 #70 [info] Trigger: detecting the table again
+10:52:45.790 #71 [info] Trigger: detecting the table again
+10:52:45.908 #72 [info] Trigger: detecting the table again
+10:52:45.939 #73 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:52:46.224 #74 [info] Trigger: detecting the table again
+10:52:47.627 #75 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:52:48.327 #76 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:52:49.246 #77 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:52:50.949 #78 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:52:55.958 #79 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:00.967 #80 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:02.136 #81 [info] Trigger: detecting the table again
+10:53:05.977 #82 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:53:10.986 #83 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:15.997 #84 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:21.005 #85 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:26.016 #86 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:31.023 #87 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:36.033 #88 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:41.043 #89 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:46.052 #90 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:46.904 #91 [info] Trigger: detecting the table again
+10:53:47.238 #92 [info] Trigger: detecting the table again
+10:53:51.061 #93 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:56.070 #94 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:53:58.925 #95 [info] Trigger: detecting the table again
+10:53:58.976 #96 [info] Trigger: detecting the table again
+10:53:59.076 #97 [info] Trigger: detecting the table again
+10:54:01.081 #98 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:54:04.153 #99 [info] Trigger: detecting the table again
+10:54:06.089 #100 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:54:11.098 #101 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:54:16.007 #102 [warn] No viewer pose (tracking lost?)
+10:54:16.019 #103 [info] Session ended {"afterSeconds":150.3,"frames":8944,"mode":"camera"}
+10:56:17.471 #104 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection","camera-access"]}
+10:56:20.803 #105 [info] Session started {"enabledFeatures":["viewer","camera-access","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+10:56:20.814 #106 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+10:56:20.876 #107 [info] Classic layer in use baseLayer missing?
+10:56:20.887 #109 [info] Camera mode: the camera binding is created once the first camera image arrives
+10:56:20.882 #108 [info] Renderer attached {"referenceSpace":"local-floor"}
+10:56:20.904 #110 [info] First XR frame
+10:56:20.911 #111 [info] XR render #1 starting
+10:56:20.918 #112 [info] XR render #1 done {"glError":"0x506"}
+10:56:21.008 #117 [info] XR render #3 starting
+10:56:20.960 #113 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:56:20.965 #114 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:56:20.976 #115 [info] XR render #2 starting
+10:56:21.013 #118 [info] XR render #3 done {"glError":"0x506"}
+10:56:20.982 #116 [info] XR render #2 done {"glError":"0x506"}
+10:56:21.058 #119 [info] Waiting for camera image: no view has a camera yet {"views":2}
+10:56:21.125 #120 [info] XR render #10 starting
+10:56:21.132 #121 [info] XR render #10 done {"glError":"0x506"}
+10:56:21.760 #122 [info] Camera image arrived after 701 ms
+10:56:21.766 #123 [info] Camera view found {"view":0,"eye":"left","size":"640x480","views":2}
+10:56:21.772 #124 [info] Creating camera binding (XRWebGLBinding)…
+10:56:21.783 #125 [info] Camera reader ready
+10:56:21.789 #126 [info] Calling getCameraImage for the first time…
+10:56:21.795 #127 [info] Reading camera pixels for the first time…
+10:56:21.802 #128 [warn] WebGL error after camera read 0x506
+10:56:21.808 #129 [info] First camera frame read {"meanBrightness":41}
+10:56:21.816 #130 [info] Requesting hit-test along the camera ray…
+10:56:21.822 #131 [info] Plane detection active {"planes":43}
+10:56:21.828 #132 [info] Plane orientation seen Vertical
+10:56:21.834 #133 [info] Plane orientation seen Horizontal
+10:56:21.839 #134 [info] Plane orientation seen 
+10:56:21.845 #135 [warn] No measured table height yet, assuming 0.75 m above the floor
+10:56:21.851 #136 [info] White area rejected not rectangular (fill 0.62)
+10:56:21.865 #137 [info] Camera-ray hit-test source created
+10:56:21.983 #138 [info] Table height from plane {"y":0.77}
+10:56:21.989 #139 [info] Table fitted {"size":"3.71 x 1.49 m","corner":0.67,"fill":0.75,"height":"plane"}
+10:56:22.083 #140 [info] XR render #60 starting
+10:56:22.099 #141 [info] XR render #60 done
+10:56:23.366 #142 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:56:23.372 #143 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:56:23.414 #144 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:56:23.420 #145 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:56:24.955 #146 [info] White area rejected too narrow (0.09 m)
+10:56:25.902 #147 [info] Running {"fps":56,"mode":"camera","locked":false}
+10:56:26.209 #149 [info] XR render #300 done
+10:56:26.192 #148 [info] XR render #300 starting
+10:56:28.689 #150 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+10:56:28.743 #151 [info] Trigger: detecting the table again
+10:56:30.132 #152 [info] White area rejected blob not below eye level
+10:56:30.912 #153 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:56:35.922 #154 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:56:36.871 #155 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+10:56:40.929 #156 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:56:42.221 #157 [info] White area rejected too long (4.31 m)
+10:56:45.939 #158 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:56:50.948 #159 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:56:55.958 #160 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:00.967 #161 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:05.977 #162 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:10.986 #163 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:15.995 #164 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:21.005 #165 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:24.394 #166 [info] Trigger: detecting the table again
+10:57:26.016 #167 [info] Running {"fps":59,"mode":"camera","locked":false}
+10:57:31.023 #168 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:36.033 #169 [info] Running {"fps":60,"mode":"camera","locked":false}
+10:57:36.070 #170 [warn] No viewer pose (tracking lost?)
+10:57:36.079 #171 [info] Session ended {"afterSeconds":75.3,"frames":4473,"mode":"camera"}
+10:59:53.708 #173 [info] Page visibility visible
+11:00:13.279 #175 [info] Page visibility hidden
+11:00:13.658 #1 [info] WebGL context {"xrCompatible":true,"antialias":true,"renderer":"ANGLE (X.Org, AMD MERO (DRM 3.37.0 5.4.19-android-x86_64 LLVM 10.0), OpenGL ES 3.2)"}
+11:00:13.674 #2 [info] Page loaded {"url":"https://qv96th6s-8000.euw.devtunnels.ms/","secure":true,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/122.0.6261.171 Safari/537.36"}
+11:00:13.688 #3 [info] WebXR support {"immersive-ar":true,"immersive-vr":true,"XRWebGLBinding":true,"getCameraImage":true,"XRRay":true}
+11:00:14.717 #5 [info] Corner calibration: not requesting camera-access
+11:00:14.721 #6 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:00:13.270 #174 [info] Page is being hidden or unloaded
+11:00:13.699 #4 [info] Laptop log server found: every log line is also sent there
+11:00:16.323 #10 [info] Corner calibration started session start
+11:00:16.319 #9 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:00:16.344 #11 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:00:16.247 #8 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:00:16.350 #12 [info] XR render #1 starting
+11:00:16.243 #7 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:00:16.447 #16 [info] Controller hit-test ready
+11:00:16.453 #17 [info] Plane detection active {"planes":52}
+11:00:16.457 #18 [info] Plane orientation seen Horizontal
+11:00:16.417 #13 [info] XR render #1 done
+11:00:16.439 #15 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:16.435 #14 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:16.466 #20 [info] Plane orientation seen Vertical
+11:00:16.503 #24 [info] XR render #3 done {"glError":"0x506"}
+11:00:16.473 #21 [info] XR render #2 starting
+11:00:16.478 #22 [info] XR render #2 done {"glError":"0x506"}
+11:00:16.461 #19 [info] Plane orientation seen 
+11:00:16.500 #23 [info] XR render #3 starting
+11:00:16.618 #25 [info] XR render #10 starting
+11:00:16.623 #26 [info] XR render #10 done {"glError":"0x506"}
+11:00:17.456 #28 [info] XR render #60 done {"glError":"0x506"}
+11:00:17.452 #27 [info] XR render #60 starting
+11:00:21.465 #30 [info] XR render #300 done {"glError":"0x506"}
+11:00:21.459 #29 [info] XR render #300 starting
+11:00:21.542 #31 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:21.546 #32 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:21.592 #33 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:21.596 #34 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:23.162 #35 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:00:24.232 #36 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:24.235 #37 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:24.297 #38 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:24.301 #39 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:28.172 #40 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:00:33.181 #41 [info] Running {"fps":60,"mode":"corners","locked":false}
+11:00:35.056 #43 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:35.051 #42 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:35.124 #45 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:35.119 #44 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:38.190 #46 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:00:43.199 #47 [info] Running {"fps":60,"mode":"corners","locked":false}
+11:00:45.232 #48 [info] Session ended {"afterSeconds":29,"frames":1694,"mode":"corners"}
+11:00:50.672 #50 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:00:50.665 #49 [info] Corner calibration: not requesting camera-access
+11:00:52.277 #51 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:00:52.288 #52 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:00:52.344 #53 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:00:52.350 #54 [info] Corner calibration started session start
+11:00:52.362 #55 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:00:52.368 #56 [info] XR render #1 starting
+11:00:52.376 #57 [info] XR render #1 done {"glError":"0x506"}
+11:00:52.418 #58 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:00:52.423 #59 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:00:52.434 #60 [info] Controller hit-test ready
+11:00:52.439 #61 [info] Plane detection active {"planes":55}
+11:00:52.444 #62 [info] Plane orientation seen Horizontal
+11:00:52.450 #63 [info] Plane orientation seen 
+11:00:52.456 #64 [info] Plane orientation seen Vertical
+11:00:52.462 #65 [info] XR render #2 starting
+11:00:52.468 #66 [info] XR render #2 done {"glError":"0x506"}
+11:00:52.500 #67 [info] XR render #3 starting
+11:00:52.506 #68 [info] XR render #3 done {"glError":"0x506"}
+11:00:52.618 #69 [info] XR render #10 starting
+11:00:52.624 #70 [info] XR render #10 done {"glError":"0x506"}
+11:00:53.453 #71 [info] XR render #60 starting
+11:00:53.458 #72 [info] XR render #60 done {"glError":"0x506"}
+11:00:57.359 #73 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:00:57.460 #74 [info] XR render #300 starting
+11:00:57.466 #75 [info] XR render #300 done {"glError":"0x506"}
+11:01:01.424 #77 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:01.417 #76 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:01.483 #78 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:01.489 #79 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:02.370 #80 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:01:03.004 #81 [info] Session ended {"afterSeconds":10.7,"frames":608,"mode":"corners"}
+11:01:07.463 #82 [info] Corner calibration: not requesting camera-access
+11:01:07.470 #83 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:01:09.033 #84 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:01:09.040 #85 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:01:09.116 #87 [info] Corner calibration started session start
+11:01:09.108 #86 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:01:09.137 #89 [info] XR render #1 starting
+11:01:09.131 #88 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:01:09.143 #90 [info] XR render #1 done {"glError":"0x506"}
+11:01:09.203 #91 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:09.209 #92 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:09.226 #94 [info] Plane detection active {"planes":46}
+11:01:09.220 #93 [info] Controller hit-test ready
+11:01:09.231 #95 [info] Plane orientation seen Vertical
+11:01:09.237 #96 [info] Plane orientation seen Horizontal
+11:01:09.243 #97 [info] Plane orientation seen 
+11:01:09.251 #98 [info] XR render #2 starting
+11:01:09.257 #99 [info] XR render #2 done {"glError":"0x506"}
+11:01:09.281 #100 [info] XR render #3 starting
+11:01:09.287 #101 [info] XR render #3 done {"glError":"0x506"}
+11:01:09.405 #103 [info] XR render #10 done {"glError":"0x506"}
+11:01:09.399 #102 [info] XR render #10 starting
+11:01:10.240 #105 [info] XR render #60 done {"glError":"0x506"}
+11:01:10.234 #104 [info] XR render #60 starting
+11:01:14.124 #106 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:01:14.242 #107 [info] XR render #300 starting
+11:01:14.248 #108 [info] XR render #300 done {"glError":"0x506"}
+11:01:15.494 #109 [info] Corner 1 placed {"at":[0.011,1.284,-0.57],"how":"controller tip","aboveFloor":1.28}
+11:01:17.447 #110 [info] Corner 2 placed {"at":[-0.065,1.284,-1.127],"how":"ray on table plane","aboveFloor":1.28}
+11:01:19.133 #111 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:01:19.267 #112 [info] Corner 3 placed {"at":[0.432,1.284,-1.083],"how":"ray on table plane","aboveFloor":1.28}
+11:01:22.698 #114 [info] Table calibrated {"centre":[0.193,1.284,-0.766],"size":"0.67 x 0.46 m","yawDeg":-99.3,"aboveFloor":1.28,"skewDeg":23.6,"edgeMismatch":0.3,"heightSpread":0,"how":["controller tip","ray on table plane","ray on table plane","controller tip"]}
+11:01:22.705 #115 [warn] The 4 corners are far from a rectangle. Press the bumper to calibrate again if the outline looks wrong.
+11:01:24.142 #116 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:01:22.690 #113 [info] Corner 4 placed {"at":[0.392,1.284,-0.281],"how":"controller tip","aboveFloor":1.28}
+11:01:29.152 #117 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:01:33.015 #118 [info] Session ended {"afterSeconds":24,"frames":1389,"mode":"corners"}
+11:01:34.464 #119 [info] Corner calibration: not requesting camera-access
+11:01:34.472 #120 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:01:38.083 #122 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:01:38.074 #121 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:01:38.142 #123 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:01:38.149 #124 [info] Corner calibration started session start
+11:01:38.171 #125 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:01:38.177 #126 [info] XR render #1 starting
+11:01:38.185 #127 [info] XR render #1 done {"glError":"0x506"}
+11:01:38.238 #128 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:38.245 #129 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:38.257 #130 [info] Controller hit-test ready
+11:01:38.265 #131 [info] Plane detection active {"planes":45}
+11:01:38.272 #132 [info] Plane orientation seen Horizontal
+11:01:38.278 #133 [info] Plane orientation seen Vertical
+11:01:38.287 #134 [info] Plane orientation seen 
+11:01:38.294 #135 [info] XR render #2 starting
+11:01:38.302 #136 [info] XR render #2 done {"glError":"0x506"}
+11:01:38.336 #137 [info] XR render #3 starting
+11:01:38.343 #138 [info] XR render #3 done {"glError":"0x506"}
+11:01:38.453 #139 [info] XR render #10 starting
+11:01:38.459 #140 [info] XR render #10 done {"glError":"0x506"}
+11:01:38.836 #141 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:38.845 #142 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:38.954 #143 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:38.962 #144 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:39.330 #146 [info] XR render #60 done {"glError":"0x506"}
+11:01:39.323 #145 [info] XR render #60 starting
+11:01:40.357 #147 [info] Corner 1 placed {"at":[-0.52,0.776,-1.343],"how":"controller tip","aboveFloor":0.78}
+11:01:43.162 #148 [info] Running {"fps":57,"mode":"corners","locked":false}
+11:01:43.362 #149 [info] XR render #300 starting
+11:01:43.369 #150 [info] XR render #300 done {"glError":"0x506"}
+11:01:43.529 #151 [info] Corner 2 placed {"at":[0.806,0.776,-1.193],"how":"controller tip","aboveFloor":0.78}
+11:01:46.729 #153 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:46.720 #152 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:46.794 #155 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:46.786 #154 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:48.172 #156 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:01:50.375 #157 [info] Corner 3 placed {"at":[1.022,0.776,-3.094],"how":"controller tip","aboveFloor":0.78}
+11:01:53.182 #158 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:01:54.767 #159 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:54.775 #160 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:54.842 #162 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:01:54.834 #161 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:01:56.897 #164 [info] Table calibrated {"centre":[0.256,0.776,-2.219],"size":"1.92 x 1.32 m","yawDeg":-96.7,"aboveFloor":0.78,"skewDeg":0.2,"edgeMismatch":0.01,"heightSpread":0,"how":["controller tip","controller tip","controller tip","controller tip"]}
+11:01:56.888 #163 [info] Corner 4 placed {"at":[-0.285,0.776,-3.245],"how":"controller tip","aboveFloor":0.78}
+11:01:58.191 #165 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:02:00.293 #166 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:00.301 #167 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:00.360 #168 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:00.368 #169 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:03.199 #170 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:02:07.475 #171 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:07.485 #172 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:08.208 #173 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:02:08.859 #174 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:08.867 #175 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:09.530 #176 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:09.538 #177 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:09.578 #178 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:09.586 #179 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:10.037 #181 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:10.029 #180 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:12.416 #182 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:12.427 #183 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:13.084 #184 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:13.218 #185 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:02:14.037 #186 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:14.537 #187 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:17.342 #188 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:17.953 #190 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:17.943 #189 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:18.228 #191 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:02:20.708 #193 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:20.698 #192 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:23.237 #194 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:02:28.246 #195 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:02:31.218 #196 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:33.256 #197 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:02:36.712 #198 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:37.565 #199 [info] Session ended {"afterSeconds":59.5,"frames":3500,"mode":"corners"}
+11:02:49.555 #200 [info] Corner calibration: not requesting camera-access
+11:02:49.567 #201 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:02:51.183 #202 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:02:51.192 #203 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:02:51.258 #204 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:02:51.267 #205 [info] Corner calibration started session start
+11:02:51.293 #206 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:02:51.302 #207 [info] XR render #1 starting
+11:02:51.313 #208 [info] XR render #1 done {"glError":"0x506"}
+11:02:51.375 #209 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:51.385 #210 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:51.398 #211 [info] Controller hit-test ready
+11:02:51.407 #212 [info] Plane detection active {"planes":44}
+11:02:51.417 #213 [info] Plane orientation seen Vertical
+11:02:51.427 #214 [info] Plane orientation seen 
+11:02:51.435 #215 [info] Plane orientation seen Horizontal
+11:02:51.447 #216 [info] XR render #2 starting
+11:02:51.457 #217 [info] XR render #2 done {"glError":"0x506"}
+11:02:51.490 #218 [info] XR render #3 starting
+11:02:51.499 #219 [info] XR render #3 done {"glError":"0x506"}
+11:02:51.607 #220 [info] XR render #10 starting
+11:02:51.616 #221 [info] XR render #10 done {"glError":"0x506"}
+11:02:52.425 #222 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:52.434 #223 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:52.475 #224 [info] XR render #60 starting
+11:02:52.486 #225 [info] XR render #60 done {"glError":"0x506"}
+11:02:56.282 #226 [info] Running {"fps":57,"mode":"corners","locked":false}
+11:02:56.526 #228 [info] XR render #300 done {"glError":"0x506"}
+11:02:56.516 #227 [info] XR render #300 starting
+11:02:56.749 #229 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:56.759 #230 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:56.802 #231 [info] Corner 1 placed {"at":[-1.582,1.027,-1.483],"how":"controller tip","aboveFloor":1.03}
+11:02:56.838 #232 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:02:56.850 #233 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:02:59.020 #234 [warn] Cannot place a corner: the controller is not pointing at the table
+11:03:01.292 #235 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:03:03.246 #236 [warn] Cannot place a corner: the controller is not pointing at the table
+11:03:05.886 #237 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:05.895 #238 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:05.950 #239 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:05.961 #240 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:06.300 #241 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:03:06.354 #242 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:06.362 #243 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:06.381 #244 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:06.390 #245 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:08.154 #246 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:08.165 #247 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:08.237 #248 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:08.248 #249 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:11.310 #250 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:03:16.320 #251 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:03:17.238 #252 [warn] Cannot place a corner: the controller is not pointing at the table
+11:03:19.610 #253 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:19.620 #254 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:19.692 #255 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:19.702 #256 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:20.687 #258 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:20.678 #257 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:20.761 #259 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:20.771 #260 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:21.329 #261 [info] Running {"fps":57,"mode":"corners","locked":false}
+11:03:23.249 #262 [info] Corner 2 placed {"at":[-2.63,1.027,-1.774],"how":"controller tip","aboveFloor":1.03}
+11:03:26.339 #263 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:03:28.058 #264 [info] Corner 3 placed {"at":[-2.243,1.027,-3.051],"how":"ray on table plane","aboveFloor":1.03}
+11:03:31.349 #265 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:03:35.334 #267 [info] Table calibrated {"centre":[-1.908,1.027,-2.258],"size":"1.32 x 1.10 m","yawDeg":-106.9,"aboveFloor":1.03,"skewDeg":1.2,"edgeMismatch":0.03,"heightSpread":0,"how":["controller tip","controller tip","ray on table plane","ray on table plane"]}
+11:03:35.321 #266 [info] Corner 4 placed {"at":[-1.175,1.027,-2.723],"how":"ray on table plane","aboveFloor":1.03}
+11:03:36.357 #268 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:03:36.624 #269 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:36.635 #270 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:36.707 #271 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:36.718 #272 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:40.048 #273 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:40.060 #274 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:40.130 #275 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:40.142 #276 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:41.366 #277 [info] Running {"fps":57,"mode":"corners","locked":true}
+11:03:46.375 #278 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:46.394 #279 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:03:51.385 #280 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:03:52.520 #281 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:53.422 #282 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:53.433 #283 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:54.318 #285 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:03:54.307 #284 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:03:56.394 #286 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:04:00.942 #287 [info] Session ended {"afterSeconds":69.8,"frames":4056,"mode":"corners"}
+11:04:08.967 #288 [info] Page visibility hidden
+11:04:12.457 #289 [info] Page visibility visible
+11:04:16.635 #290 [info] Corner calibration: not requesting camera-access
+11:04:16.648 #291 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:04:18.391 #292 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:04:18.407 #293 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:04:18.468 #294 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:04:18.479 #295 [info] Corner calibration started session start
+11:04:18.506 #296 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:04:18.516 #297 [info] XR render #1 starting
+11:04:18.527 #298 [info] XR render #1 done {"glError":"0x506"}
+11:04:18.588 #299 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:18.600 #300 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:18.616 #301 [info] Controller hit-test ready
+11:04:18.626 #302 [info] Plane detection active {"planes":48}
+11:04:18.638 #303 [info] Plane orientation seen 
+11:04:18.648 #304 [info] Plane orientation seen Vertical
+11:04:18.660 #305 [info] Plane orientation seen Horizontal
+11:04:18.672 #306 [info] XR render #2 starting
+11:04:18.684 #307 [info] XR render #2 done {"glError":"0x506"}
+11:04:18.720 #308 [info] XR render #3 starting
+11:04:18.728 #309 [info] XR render #3 done {"glError":"0x506"}
+11:04:18.836 #310 [info] XR render #10 starting
+11:04:18.849 #311 [info] XR render #10 done {"glError":"0x506"}
+11:04:19.671 #312 [info] XR render #60 starting
+11:04:19.682 #313 [info] XR render #60 done {"glError":"0x506"}
+11:04:21.892 #314 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:21.902 #315 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:21.975 #316 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:21.985 #317 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:23.495 #318 [info] Running {"fps":56,"mode":"corners","locked":false}
+11:04:23.796 #319 [info] XR render #300 starting
+11:04:23.808 #320 [info] XR render #300 done {"glError":"0x506"}
+11:04:27.465 #322 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:27.453 #321 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:27.535 #323 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:27.546 #324 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:28.505 #325 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:04:30.341 #326 [info] Corner 1 placed {"at":[-1.031,0.77,-0.649],"how":"controller tip","aboveFloor":0.77}
+11:04:31.658 #328 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:31.643 #327 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:31.727 #329 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:31.740 #330 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:33.514 #331 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:04:33.981 #332 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:33.993 #333 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:34.064 #334 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:34.076 #335 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:38.523 #336 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:04:40.928 #337 [info] Corner 2 placed {"at":[1.256,0.77,-0.553],"how":"ray on table plane","aboveFloor":0.77}
+11:04:43.532 #338 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:04:48.224 #339 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:48.236 #340 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:48.308 #341 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:48.320 #342 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:48.542 #343 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:04:53.551 #344 [info] Running {"fps":60,"mode":"corners","locked":false}
+11:04:54.754 #345 [info] Corner 3 placed {"at":[1.246,0.77,0.149],"how":"ray on table plane","aboveFloor":0.77}
+11:04:56.791 #346 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:56.802 #347 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:56.874 #348 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:04:56.886 #349 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:04:58.560 #350 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:05:03.271 #351 [info] Corner 4 placed {"at":[-0.725,0.77,0.179],"how":"controller tip","aboveFloor":0.77}
+11:05:03.285 #352 [info] Table calibrated {"centre":[0.186,0.77,-0.219],"size":"2.12 x 0.77 m","yawDeg":4.5,"aboveFloor":0.77,"skewDeg":10.5,"edgeMismatch":0.21,"heightSpread":0,"how":["controller tip","ray on table plane","ray on table plane","controller tip"]}
+11:05:03.295 #353 [warn] The 4 corners are far from a rectangle. Press the bumper to calibrate again if the outline looks wrong.
+11:05:03.570 #354 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:05:08.581 #355 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:05:11.334 #356 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:05:11.349 #357 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:05:11.603 #358 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:05:11.614 #359 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:05:13.589 #360 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:05:18.598 #361 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:05:23.607 #362 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:05:28.617 #363 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:05:32.541 #364 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:05:32.553 #365 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:05:32.641 #366 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:05:32.653 #367 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:05:33.626 #368 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:05:36.484 #369 [info] Session ended {"afterSeconds":78.1,"frames":4576,"mode":"corners"}
+11:06:15.808 #370 [info] Corner calibration: not requesting camera-access
+11:06:15.820 #371 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:06:17.265 #372 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:06:17.284 #373 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:06:17.347 #374 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:06:17.360 #375 [info] Corner calibration started session start
+11:06:17.478 #379 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:17.396 #376 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:06:17.420 #378 [info] XR render #1 done {"glError":"0x506"}
+11:06:17.408 #377 [info] XR render #1 starting
+11:06:17.490 #380 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:17.510 #381 [info] Controller hit-test ready
+11:06:17.521 #382 [info] Plane detection active {"planes":46}
+11:06:17.533 #383 [info] Plane orientation seen Horizontal
+11:06:17.545 #384 [info] Plane orientation seen Vertical
+11:06:17.558 #385 [info] Plane orientation seen 
+11:06:17.571 #386 [info] XR render #2 starting
+11:06:17.582 #387 [info] XR render #2 done {"glError":"0x506"}
+11:06:17.622 #388 [info] XR render #3 starting
+11:06:17.633 #389 [info] XR render #3 done {"glError":"0x506"}
+11:06:17.776 #390 [info] XR render #10 starting
+11:06:17.787 #391 [info] XR render #10 done {"glError":"0x506"}
+11:06:18.612 #392 [info] XR render #60 starting
+11:06:18.624 #393 [info] XR render #60 done {"glError":"0x506"}
+11:06:20.949 #394 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:20.961 #395 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:21.032 #396 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:21.045 #397 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:22.368 #398 [info] Running {"fps":55,"mode":"corners","locked":false}
+11:06:22.768 #399 [info] XR render #300 starting
+11:06:22.780 #400 [info] XR render #300 done {"glError":"0x506"}
+11:06:23.135 #401 [info] Corner 1 placed {"at":[-0.913,0.015,-1.665],"how":"controller tip","aboveFloor":0.02}
+11:06:23.569 #402 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:23.582 #403 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:23.664 #405 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:23.653 #404 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:26.041 #406 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:26.052 #407 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:26.124 #408 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:26.136 #409 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:27.371 #411 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:27.360 #410 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:27.428 #412 [info] Running {"fps":56,"mode":"corners","locked":false}
+11:06:27.962 #413 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:27.973 #414 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:28.445 #415 [info] Corner 2 placed {"at":[-2.809,0.015,-2.474],"how":"controller tip","aboveFloor":0.02}
+11:06:29.748 #416 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:29.761 #417 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:29.831 #418 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:29.843 #419 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:32.020 #420 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:32.033 #421 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:32.320 #422 [info] Corner 3 placed {"at":[-2.286,0.015,-4.008],"how":"controller tip","aboveFloor":0.02}
+11:06:32.415 #424 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:32.403 #423 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:32.454 #425 [info] Running {"fps":56,"mode":"corners","locked":false}
+11:06:36.912 #426 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:36.924 #427 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:36.994 #428 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:37.007 #429 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:37.464 #430 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:06:40.952 #431 [info] Corner 4 placed {"at":[-0.356,0.015,-3.242],"how":"controller tip","aboveFloor":0.02}
+11:06:40.967 #432 [info] Table calibrated {"centre":[-1.591,0.015,-2.847],"size":"2.07 x 1.65 m","yawDeg":-20.8,"aboveFloor":0.02,"skewDeg":3.2,"edgeMismatch":0.03,"heightSpread":0,"how":["controller tip","controller tip","controller tip","controller tip"]}
+11:06:42.472 #433 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:06:47.481 #434 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:06:48.394 #436 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:48.383 #435 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:48.466 #437 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:48.478 #438 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:50.439 #439 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:50.487 #440 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:51.507 #441 [info] Session ended {"afterSeconds":34.2,"frames":1935,"mode":"corners"}
+11:06:54.195 #442 [info] Corner calibration: not requesting camera-access
+11:06:54.210 #443 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:06:55.791 #444 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:06:55.804 #445 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:06:55.869 #446 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:06:55.881 #447 [info] Corner calibration started session start
+11:06:55.913 #448 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:06:55.926 #449 [info] XR render #1 starting
+11:06:55.938 #450 [info] XR render #1 done {"glError":"0x506"}
+11:06:55.999 #451 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:06:56.012 #452 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:06:56.032 #453 [info] Controller hit-test ready
+11:06:56.044 #454 [info] Plane detection active {"planes":45}
+11:06:56.067 #456 [info] Plane orientation seen Horizontal
+11:06:56.055 #455 [info] Plane orientation seen Vertical
+11:06:56.079 #457 [info] Plane orientation seen 
+11:06:56.093 #458 [info] XR render #2 starting
+11:06:56.106 #459 [info] XR render #2 done {"glError":"0x506"}
+11:06:56.147 #460 [info] XR render #3 starting
+11:06:56.159 #461 [info] XR render #3 done {"glError":"0x506"}
+11:06:56.311 #463 [info] XR render #10 done {"glError":"0x506"}
+11:06:56.299 #462 [info] XR render #10 starting
+11:06:57.133 #464 [info] XR render #60 starting
+11:06:57.145 #465 [info] XR render #60 done {"glError":"0x506"}
+11:07:00.890 #466 [info] Running {"fps":56,"mode":"corners","locked":false}
+11:07:01.208 #467 [info] XR render #300 starting
+11:07:01.220 #468 [info] XR render #300 done {"glError":"0x506"}
+11:07:05.899 #469 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:07:10.909 #470 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:07:13.191 #472 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:13.179 #471 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:13.429 #473 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:13.442 #474 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:15.917 #475 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:07:18.940 #476 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:18.953 #477 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:19.023 #478 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:19.035 #479 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:20.927 #480 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:07:21.611 #481 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:21.623 #482 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:24.099 #483 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:24.113 #484 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:25.937 #485 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:07:30.611 #486 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:30.622 #487 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:30.946 #488 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:07:33.033 #489 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:33.045 #490 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:35.600 #492 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:35.588 #491 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:35.658 #493 [info] Corner 1 placed {"at":[-1.901,0.76,-2.128],"how":"plane","aboveFloor":0.76}
+11:07:35.695 #495 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:35.683 #494 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:35.956 #496 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:07:38.795 #497 [info] Ignored: less than 5 cm from a corner that is already placed
+11:07:39.712 #498 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:40.964 #499 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:07:44.690 #500 [info] Corner 2 placed {"at":[-1.786,0.76,-2.422],"how":"ray on table plane","aboveFloor":0.76}
+11:07:44.756 #501 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:45.524 #502 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:45.974 #503 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:07:46.027 #504 [info] Corner 3 placed {"at":[-1.85,0.76,-2.441],"how":"ray on table plane","aboveFloor":0.76}
+11:07:46.050 #505 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:46.693 #506 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:47.446 #507 [info] Corner 4 placed {"at":[-2.001,0.76,-2.399],"how":"ray on table plane","aboveFloor":0.76}
+11:07:47.458 #508 [info] Table calibrated {"centre":[-1.885,0.76,-2.347],"size":"0.21 x 0.16 m","yawDeg":44.5,"aboveFloor":0.76,"skewDeg":4.9,"edgeMismatch":0.77,"heightSpread":0,"how":["plane","ray on table plane","ray on table plane","ray on table plane"]}
+11:07:47.470 #509 [warn] The 4 corners are far from a rectangle. Press the bumper to calibrate again if the outline looks wrong.
+11:07:47.528 #510 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:49.530 #511 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:49.542 #512 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:50.983 #513 [info] Running {"fps":57,"mode":"corners","locked":true}
+11:07:51.601 #514 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:51.614 #515 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:52.419 #516 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:52.430 #517 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:52.900 #519 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:07:52.887 #518 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:07:55.992 #520 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:08:00.050 #521 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:08:00.063 #522 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:08:00.541 #523 [info] Session ended {"afterSeconds":64.8,"frames":3745,"mode":"corners"}
+11:08:33.680 #525 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:08:33.666 #524 [info] Corner calibration: not requesting camera-access
+11:08:35.106 #526 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:08:35.127 #527 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:08:35.206 #529 [info] Corner calibration started session start
+11:08:35.194 #528 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:08:35.232 #530 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:08:35.245 #531 [info] XR render #1 starting
+11:08:35.256 #532 [info] XR render #1 done {"glError":"0x506"}
+11:08:35.319 #533 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:08:35.331 #534 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:08:35.354 #535 [info] Controller hit-test ready
+11:08:35.368 #536 [info] XR render #2 starting
+11:08:35.382 #537 [info] XR render #2 done {"glError":"0x506"}
+11:08:35.416 #538 [info] XR render #3 starting
+11:08:35.427 #539 [info] XR render #3 done {"glError":"0x506"}
+11:08:35.533 #540 [info] XR render #10 starting
+11:08:35.545 #541 [info] XR render #10 done {"glError":"0x506"}
+11:08:35.616 #542 [info] Plane detection active {"planes":55}
+11:08:35.629 #543 [info] Plane orientation seen Vertical
+11:08:35.641 #544 [info] Plane orientation seen Horizontal
+11:08:35.650 #545 [info] Plane orientation seen 
+11:08:35.700 #546 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:08:36.453 #547 [info] XR render #60 starting
+11:08:36.467 #548 [info] XR render #60 done {"glError":"0x506"}
+11:08:40.209 #549 [info] Running {"fps":56,"mode":"corners","locked":false}
+11:08:40.527 #550 [info] XR render #300 starting
+11:08:40.539 #551 [info] XR render #300 done {"glError":"0x506"}
+11:08:43.548 #552 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:08:43.560 #553 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:08:45.220 #554 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:08:48.293 #555 [info] Session ended {"afterSeconds":13.2,"frames":758,"mode":"corners"}
+11:09:10.649 #557 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:09:10.634 #556 [info] Corner calibration: not requesting camera-access
+11:09:12.016 #558 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:09:12.030 #559 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:09:12.096 #560 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:09:12.109 #561 [info] Corner calibration started session start
+11:09:12.139 #562 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:09:12.152 #563 [info] XR render #1 starting
+11:09:12.163 #564 [info] XR render #1 done {"glError":"0x506"}
+11:09:12.221 #565 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:09:12.233 #566 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:12.254 #567 [info] Controller hit-test ready
+11:09:12.266 #568 [info] Plane detection active {"planes":38}
+11:09:12.278 #569 [info] Plane orientation seen Vertical
+11:09:12.289 #570 [info] Plane orientation seen 
+11:09:12.302 #571 [info] Plane orientation seen Horizontal
+11:09:12.314 #572 [info] XR render #2 starting
+11:09:12.327 #573 [info] XR render #2 done {"glError":"0x506"}
+11:09:12.368 #574 [info] XR render #3 starting
+11:09:12.382 #575 [info] XR render #3 done {"glError":"0x506"}
+11:09:12.519 #576 [info] XR render #10 starting
+11:09:12.535 #577 [info] XR render #10 done {"glError":"0x506"}
+11:09:12.770 #578 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:12.783 #579 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:09:13.421 #580 [info] XR render #60 starting
+11:09:13.434 #581 [info] XR render #60 done {"glError":"0x506"}
+11:09:14.757 #582 [info] Corner 1 placed {"at":[0.197,1.077,-0.716],"how":"hit-test","aboveFloor":1.08}
+11:09:16.142 #583 [info] Corner 2 placed {"at":[0.381,1.077,-0.87],"how":"controller tip","aboveFloor":1.08}
+11:09:17.111 #584 [info] Running {"fps":54,"mode":"corners","locked":false}
+11:09:17.579 #585 [info] XR render #300 starting
+11:09:17.591 #586 [info] XR render #300 done {"glError":"0x506"}
+11:09:18.347 #587 [info] Corner 3 placed {"at":[0.661,1.077,-0.543],"how":"controller tip","aboveFloor":1.08}
+11:09:20.749 #589 [info] Table calibrated {"centre":[0.43,1.077,-0.625],"size":"0.44 x 0.24 m","yawDeg":-49,"aboveFloor":1.08,"skewDeg":1.7,"edgeMismatch":0.04,"heightSpread":0,"how":["hit-test","controller tip","controller tip","controller tip"]}
+11:09:20.735 #588 [info] Corner 4 placed {"at":[0.482,1.077,-0.372],"how":"controller tip","aboveFloor":1.08}
+11:09:22.122 #590 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:09:23.876 #591 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:09:23.888 #592 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:23.941 #593 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:23.953 #594 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:09:27.130 #595 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:09:27.597 #596 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:30.419 #597 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:09:31.421 #598 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:09:31.434 #599 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:32.139 #600 [info] Running {"fps":58,"mode":"corners","locked":true}
+11:09:34.093 #601 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:09:34.106 #602 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:12:09.271 #6 [info] Page visibility visible
+11:12:10.763 #7 [info] Page visibility hidden
+11:14:00.647 #605 [info] Page visibility hidden
+11:14:00.635 #604 [info] Page is being hidden or unloaded
+11:14:01.093 #1 [info] WebGL context {"xrCompatible":true,"antialias":true,"renderer":"ANGLE (X.Org, AMD MERO (DRM 3.37.0 5.4.19-android-x86_64 LLVM 10.0), OpenGL ES 3.2)"}
+11:14:01.108 #2 [info] Page loaded {"url":"https://qv96th6s-8000.euw.devtunnels.ms/","secure":true,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/122.0.6261.171 Safari/537.36"}
+11:14:01.132 #4 [info] WebXR support {"immersive-ar":true,"immersive-vr":true,"XRWebGLBinding":true,"getCameraImage":true,"XRRay":true}
+11:14:01.122 #3 [info] Laptop log server found: every log line is also sent there
+11:14:01.998 #5 [info] Corner calibration: not requesting camera-access
+11:14:02.002 #6 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:14:03.188 #8 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:14:03.185 #7 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:14:03.251 #9 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:14:03.255 #10 [info] Corner calibration started session start
+11:14:03.282 #12 [info] XR render #1 starting
+11:14:03.275 #11 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:14:03.348 #13 [info] XR render #1 done
+11:14:03.367 #14 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:14:03.370 #15 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:03.374 #16 [info] Controller hit-test ready
+11:14:03.380 #17 [info] Plane detection active {"planes":45}
+11:14:03.385 #18 [info] Plane orientation seen Vertical
+11:14:03.389 #19 [info] Plane orientation seen Horizontal
+11:14:03.394 #20 [info] Plane orientation seen 
+11:14:03.399 #21 [info] XR render #2 starting
+11:14:03.405 #22 [info] XR render #2 done {"glError":"0x506"}
+11:14:03.433 #23 [info] XR render #3 starting
+11:14:03.439 #24 [info] XR render #3 done {"glError":"0x506"}
+11:14:03.548 #25 [info] XR render #10 starting
+11:14:03.553 #26 [info] XR render #10 done {"glError":"0x506"}
+11:14:04.387 #28 [info] XR render #60 done {"glError":"0x506"}
+11:14:04.383 #27 [info] XR render #60 starting
+11:14:05.151 #29 [info] Controller button 0 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:05.369 #30 [info] Corner 1 placed {"at":[0.256,1.062,-0.42],"how":"hit-test","aboveFloor":1.06}
+11:14:07.421 #31 [info] Corner 2 placed {"at":[0.407,1.062,-0.412],"how":"ray on table plane","aboveFloor":1.06}
+11:14:08.156 #32 [info] Controller button 5 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:08.457 #33 [info] XR render #300 starting
+11:14:08.462 #34 [info] XR render #300 done {"glError":"0x506"}
+11:14:10.510 #35 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:14:12.664 #36 [info] Corner 3 placed {"at":[0.414,1.062,-0.275],"how":"ray on table plane","aboveFloor":1.06}
+11:14:15.521 #37 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:14:15.737 #38 [info] Corner 4 placed {"at":[0.253,1.062,-0.281],"how":"ray on table plane","aboveFloor":1.06}
+11:14:15.744 #39 [info] Table calibrated {"centre":[0.332,1.062,-0.347],"size":"0.16 x 0.14 m","yawDeg":-1.1,"aboveFloor":1.06,"skewDeg":3.4,"edgeMismatch":0.06,"heightSpread":0,"how":["hit-test","ray on table plane","ray on table plane","ray on table plane"]}
+11:14:20.529 #40 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:14:22.216 #41 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:14:25.540 #42 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:14:30.548 #43 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:14:35.559 #44 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:14:40.566 #45 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:14:42.370 #46 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:44.760 #47 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:44.766 #48 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:14:44.808 #49 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:14:44.812 #50 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:45.576 #51 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:14:45.709 #52 [info] Controller button 4 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:14:46.177 #53 [info] Session ended {"afterSeconds":43,"frames":2521,"mode":"corners"}
+11:14:50.203 #54 [info] Page visibility hidden
+11:14:56.512 #55 [info] Page visibility visible
+11:14:56.569 #56 [info] Page is being hidden or unloaded
+11:14:56.574 #57 [info] Page visibility hidden
+11:14:56.820 #3 [info] Laptop log server found: every log line is also sent there
+11:14:56.792 #1 [info] WebGL context {"xrCompatible":true,"antialias":true,"renderer":"ANGLE (X.Org, AMD MERO (DRM 3.37.0 5.4.19-android-x86_64 LLVM 10.0), OpenGL ES 3.2)"}
+11:14:56.809 #2 [info] Page loaded {"url":"https://qv96th6s-8000.euw.devtunnels.ms/","secure":true,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/122.0.6261.171 Safari/537.36"}
+11:14:56.835 #4 [info] WebXR support {"immersive-ar":true,"immersive-vr":true,"XRWebGLBinding":true,"getCameraImage":true,"XRRay":true}
+11:14:58.903 #5 [info] Corner calibration: not requesting camera-access
+11:14:58.908 #6 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:15:01.848 #7 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:15:01.858 #8 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:15:01.927 #10 [info] Corner calibration started session start
+11:15:01.924 #9 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:15:01.948 #11 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:15:01.952 #12 [info] XR render #1 starting
+11:15:02.007 #13 [info] XR render #1 done
+11:15:02.025 #14 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:15:02.028 #15 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:15:02.043 #19 [info] Plane orientation seen Vertical
+11:15:02.032 #16 [info] Controller hit-test ready
+11:15:02.036 #17 [info] Plane detection active {"planes":44}
+11:15:02.046 #20 [info] Plane orientation seen 
+11:15:02.050 #21 [info] XR render #2 starting
+11:15:02.054 #22 [info] XR render #2 done {"glError":"0x506"}
+11:15:02.039 #18 [info] Plane orientation seen Horizontal
+11:15:02.073 #23 [info] XR render #3 starting
+11:15:02.077 #24 [info] XR render #3 done {"glError":"0x506"}
+11:15:02.197 #26 [info] XR render #10 done {"glError":"0x506"}
+11:15:02.193 #25 [info] XR render #10 starting
+11:15:03.059 #27 [info] XR render #60 starting
+11:15:03.063 #28 [info] XR render #60 done {"glError":"0x506"}
+11:15:04.663 #29 [info] Controller button 0 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:15:04.812 #30 [info] Corner 1 placed {"at":[0.268,1.098,-0.35],"how":"controller tip","aboveFloor":1.1}
+11:15:06.333 #31 [info] Corner 2 placed {"at":[0.423,1.098,-0.344],"how":"controller tip","aboveFloor":1.1}
+11:15:06.699 #32 [info] Controller button 5 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:15:06.950 #33 [info] Running {"fps":57,"mode":"corners","locked":false}
+11:15:07.134 #34 [info] XR render #300 starting
+11:15:07.138 #35 [info] XR render #300 done {"glError":"0x506"}
+11:15:08.536 #36 [info] Corner 3 placed {"at":[0.42,1.098,-0.215],"how":"controller tip","aboveFloor":1.1}
+11:15:09.905 #37 [info] Corner 4 placed {"at":[0.268,1.098,-0.218],"how":"controller tip","aboveFloor":1.1}
+11:15:09.911 #38 [info] Table calibrated {"centre":[0.345,1.098,-0.282],"size":"0.15 x 0.13 m","yawDeg":-1.2,"aboveFloor":1.1,"skewDeg":1,"edgeMismatch":0.03,"heightSpread":0,"how":["controller tip","controller tip","controller tip","controller tip"]}
+11:15:11.959 #39 [info] Running {"fps":59,"mode":"corners","locked":true}
+11:15:13.278 #40 [info] Controller button 4 pressed (first time) {"profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:15:16.968 #41 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:21.978 #42 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:24.449 #43 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:15:26.987 #44 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:31.996 #45 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:37.006 #46 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:42.015 #47 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:47.025 #48 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:52.033 #49 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:15:57.043 #50 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:16:01.368 #51 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:16:02.052 #52 [info] Running {"fps":60,"mode":"corners","locked":true}
+11:16:04.096 #53 [info] Session ended {"afterSeconds":62.2,"frames":3689,"mode":"corners"}
+11:16:05.491 #55 [info] Page visibility hidden
+11:16:05.485 #54 [info] Page is being hidden or unloaded
+11:16:05.694 #4 [info] Laptop log server found: every log line is also sent there
+11:16:05.665 #1 [info] WebGL context {"xrCompatible":true,"antialias":true,"renderer":"ANGLE (X.Org, AMD MERO (DRM 3.37.0 5.4.19-android-x86_64 LLVM 10.0), OpenGL ES 3.2)"}
+11:16:05.679 #2 [info] Page loaded {"url":"https://qv96th6s-8000.euw.devtunnels.ms/","secure":true,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/122.0.6261.171 Safari/537.36"}
+11:16:05.686 #3 [info] WebXR support {"immersive-ar":true,"immersive-vr":true,"XRWebGLBinding":true,"getCameraImage":true,"XRRay":true}
+11:16:06.764 #5 [info] Corner calibration: not requesting camera-access
+11:16:06.768 #6 [info] Requesting immersive-ar session {"optionalFeatures":["local-floor","hit-test","plane-detection"]}
+11:16:08.156 #8 [info] Attaching three.js renderer… {"path":"classic XRWebGLLayer","browserSupportsLayers":true,"antialias":true}
+11:16:08.153 #7 [info] Session started {"enabledFeatures":["viewer","plane-detection","local","hit-test","local-floor"],"blend":"additive","visibility":"visible"}
+11:16:08.225 #10 [info] Corner calibration started session start
+11:16:08.222 #9 [info] Renderer attached {"referenceSpace":"local-floor"}
+11:16:08.247 #11 [info] First XR frame {"layer":"classic XRWebGLLayer","framebuffer":"2880x1760","antialias":false}
+11:16:08.252 #12 [info] XR render #1 starting
+11:16:08.320 #13 [info] XR render #1 done
+11:16:08.349 #14 [info] Input added {"hand":"left","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:16:08.352 #15 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["magicleap-one","grip-touchpad-controller"]}
+11:16:08.360 #16 [info] Controller hit-test ready
+11:16:08.366 #17 [info] Plane detection active {"planes":42}
+11:16:08.369 #18 [info] Plane orientation seen Vertical
+11:16:08.372 #19 [info] Plane orientation seen Horizontal
+11:16:08.375 #20 [info] Plane orientation seen 
+11:16:08.381 #21 [info] XR render #2 starting
+11:16:08.386 #22 [info] XR render #2 done {"glError":"0x506"}
+11:16:08.415 #23 [info] XR render #3 starting
+11:16:08.419 #24 [info] XR render #3 done {"glError":"0x506"}
+11:16:08.532 #25 [info] XR render #10 starting
+11:16:08.536 #26 [info] XR render #10 done {"glError":"0x506"}
+11:16:09.116 #27 [info] Controller button 0 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:16:09.284 #28 [info] Corner 1 placed {"at":[0.281,1.109,-0.384],"how":"controller tip","aboveFloor":1.11}
+11:16:09.399 #29 [info] XR render #60 starting
+11:16:09.403 #30 [info] XR render #60 done {"glError":"0x506"}
+11:16:10.290 #32 [info] Bumper detected via gamepad button 5
+11:16:10.293 #33 [info] Corner 1 removed
+11:16:10.286 #31 [info] Controller button 5 pressed (first time) {"profiles":["magicleap-one","grip-touchpad-controller"]}
+11:16:11.253 #34 [info] Corner 1 placed {"at":[0.273,1.11,-0.358],"how":"controller tip","aboveFloor":1.11}
+11:16:12.039 #35 [info] Corner 2 placed {"at":[0.417,1.11,-0.376],"how":"controller tip","aboveFloor":1.11}
+11:16:12.455 #36 [info] Corner 2 removed
+11:16:13.340 #37 [info] Corner 2 placed {"at":[0.424,1.11,-0.358],"how":"controller tip","aboveFloor":1.11}
+11:16:13.557 #38 [info] XR render #300 starting
+11:16:13.561 #39 [info] XR render #300 done {"glError":"0x506"}
+11:16:14.242 #40 [info] Corner 3 placed {"at":[0.429,1.11,-0.253],"how":"controller tip","aboveFloor":1.11}
+11:16:15.428 #41 [info] Running {"fps":58,"mode":"corners","locked":false}
+11:16:15.458 #42 [info] Corner 4 placed {"at":[0.28,1.11,-0.25],"how":"controller tip","aboveFloor":1.11}
+11:16:15.465 #43 [info] Table calibrated {"centre":[0.351,1.11,-0.305],"size":"0.15 x 0.11 m","yawDeg":1.8,"aboveFloor":1.11,"skewDeg":2.4,"edgeMismatch":0.03,"heightSpread":0,"how":["controller tip","controller tip","controller tip","controller tip"]}
+11:16:16.429 #44 [info] Corner calibration started bumper: calibrate again
+11:16:17.782 #45 [info] Corner 1 placed {"at":[0.238,1.106,-0.372],"how":"controller tip","aboveFloor":1.11}
+11:16:19.452 #46 [info] Corner 2 placed {"at":[0.248,1.106,-0.009],"how":"controller tip","aboveFloor":1.11}
+11:16:20.271 #47 [info] Corner 3 placed {"at":[0.679,1.106,0.005],"how":"ray on table plane","aboveFloor":1.11}
+11:16:20.437 #48 [info] Running {"fps":57,"mode":"corners","locked":false}
+11:16:21.394 #50 [info] Table calibrated {"centre":[0.465,1.106,-0.193],"size":"0.44 x 0.38 m","yawDeg":0,"aboveFloor":1.11,"skewDeg":0.7,"edgeMismatch":0.09,"heightSpread":0,"how":["controller tip","controller tip","ray on table plane","ray on table plane"]}
+11:16:21.389 #49 [info] Corner 4 placed {"at":[0.694,1.106,-0.394],"how":"ray on table plane","aboveFloor":1.11}
+11:16:22.541 #51 [info] Corner calibration started bumper: calibrate again
+11:16:25.446 #52 [info] Running {"fps":59,"mode":"corners","locked":false}
+11:16:27.134 #53 [info] Input added {"hand":"right","mode":"tracked-pointer","profiles":["generic-hand-select-grasp","generic-hand-select"]}
+11:16:30.455 #54 [info] Running {"fps":60,"mode":"corners","locked":false}
+11:16:33.818 #55 [info] Session ended {"afterSeconds":25.7,"frames":1495,"mode":"corners"}

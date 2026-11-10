@@ -23,6 +23,12 @@
       Finds the white table in the headset's camera feed, outlines it and puts a cube in the middle.
     </p>
 
+    <fieldset id="setup-picker">
+      <legend>Table setup</legend>
+      <label><input type="radio" name="setup" value="corners" checked> Point at the 4 table corners</label>
+      <label><input type="radio" name="setup" value="detect"> Detect the white table with the camera (experimental)</label>
+    </fieldset>
+
     <fieldset id="feature-picker">
       <legend>Features to request</legend>
       <label><input type="checkbox" data-feature="local-floor" checked> Floor reference (local-floor)</label>
@@ -36,15 +42,28 @@
       <button id="start" disabled>Checking WebXR…</button>
       <button id="start-safe" class="secondary" disabled>Safe start (no extra features)</button>
     </div>
+
+    <fieldset class="diagnostics">
+      <legend>Diagnostics</legend>
+      <label><input type="checkbox" id="use-layers"> Use WebXR Layers (three.js default, crashed before)</label>
+      <button id="start-raw" class="secondary" disabled>Raw WebXR test (no three.js, 15 s)</button>
+    </fieldset>
     <p id="status" class="status" role="status"></p>
 
     <details>
       <summary>Controls in AR</summary>
+      <p><b>Corner setup</b></p>
+      <ul>
+        <li><b>Trigger</b> — place a corner where the cursor is (4 corners, any order)</li>
+        <li><b>Bumper</b> — undo the last corner; after setup: calibrate again</li>
+        <li>No surface found for corner 1? Touch the corner with the controller tip and press the trigger.</li>
+      </ul>
+      <p><b>Camera detection</b></p>
       <ul>
         <li><b>Trigger / pinch</b> — detect the table again (or place the cube in fallback mode)</li>
         <li><b>Bumper / grab</b> — show or hide the camera debug view</li>
-        <li><b>Menu button</b> — exit AR</li>
       </ul>
+      <p><b>Menu button</b> — exit AR</p>
     </details>
 
     <details>
@@ -53,7 +72,11 @@
         <li><code>?debug=1</code> — start with the camera debug view visible</li>
         <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
-        <li><code>?corner=0.1</code> — fixed corner radius in metres (default: estimated)</li>
+        <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
+        <li><code>?corner=0.1</code> — corner radius of the outline in metres (detect: default estimated, corners: default 0)</li>
+        <li><code>?white=180</code> — fixed brightness threshold for "white" (default: automatic)</li>
+        <li><code>?aa=0</code> — turn antialiasing off</li>
+        <li><code>?xrcompat=0</code> — let three.js make its own (non-XR-compatible) GL context, for comparison</li>
       </ul>
     </details>
 

@@ -15,7 +15,8 @@
 // look at the table and press the trigger to place the cube.
 //
 // Everything that happens is logged: on the page (bottom right), inside the headset
-// (bottom right of your view) and in localStorage, so the log survives a crash.
+// (bottom right of your view), in localStorage, and — when served by devserver.mjs —
+// live to the laptop, which is the only log that survives the browser crashing.
 
 import * as THREE from 'three';
 
@@ -50,6 +51,7 @@ const CONFIG = {
   hitTestIntervalMs: 400,    // how often to refresh the camera-ray hit-test
   cameraTimeoutMs: 6000,     // switch to gaze mode if no camera image by then
   heartbeatMs: 5000,         // "still running" log line, useful to see when a crash happened
+  touchDistance: 0.04,       // corner calibration: controller tip this close to the table = touching
   flipCameraY: params.get('flipy') === '1',
   debug: params.get('debug') === '1',
 };
@@ -59,6 +61,9 @@ const CONFIG = {
 // ---------------------------------------------------------------------------
 const LOG_KEY = 'tablecube-log-v1';
 const logLines = [];
+// When the page is served by devserver.mjs, every log line is also sent to the laptop.
+// That is the only log that survives the whole browser crashing.
+const remote = { enabled: false, probing: true, queue: [], seq: 0 };
 let previousLog = [];
 const logListEl = document.getElementById('log-list');
 const logState = { dirty: true };
@@ -101,8 +106,32 @@ function log(level, msg, data) {
   const out = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
   out('[TableCube]', text);
   renderLogLine(line);
-  persistLog(); // written straight away, so it is there even if the browser dies next
+  persistLog();
+  remoteLog(line);
   logState.dirty = true;
+}
+
+function remoteSend(lines) {
+  if (!lines.length) return;
+  try {
+    // sendBeacon is queued by the browser even if the page dies right after.
+    const body = JSON.stringify(lines);
+    if (navigator.sendBeacon && navigator.sendBeacon('/log', new Blob([body], { type: 'text/plain' }))) return;
+    fetch('/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lines),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // ignore: logging must never break the app
+  }
+}
+
+function remoteLog(line) {
+  const l = { ...line, n: ++remote.seq };
+  if (remote.enabled) remoteSend([l]);
+  else if (remote.probing) remote.queue.push(l);
 }
 const info = (m, d) => log('info', m, d);
 const warn = (m, d) => log('warn', m, d);
@@ -162,6 +191,23 @@ document.getElementById('log-toggle')?.addEventListener('click', (e) => {
   e.target.textContent = collapsed ? 'Show' : 'Hide';
 });
 
+(async function probeLogServer() {
+  try {
+    const r = await fetch('/log/ping', { cache: 'no-store' });
+    remote.enabled = r.ok && (await r.text()).trim() === 'tablecube-log-server';
+  } catch {
+    remote.enabled = false;
+  }
+  remote.probing = false;
+  if (remote.enabled) {
+    remoteSend(remote.queue);
+    info('Laptop log server found: every log line is also sent there');
+  } else {
+    info('No laptop log server (only available when served by devserver.mjs)');
+  }
+  remote.queue = [];
+})();
+
 window.addEventListener('error', (e) => {
   error('Uncaught error', e.error ? errText(e.error) : `${e.message} @ ${e.filename}:${e.lineno}`);
 });
@@ -174,6 +220,7 @@ window.addEventListener('pagehide', () => info('Page is being hidden or unloaded
 // ---------------------------------------------------------------------------
 const startBtn = document.getElementById('start');
 const safeBtn = document.getElementById('start-safe');
+const rawBtn = document.getElementById('start-raw');
 const statusEl = document.getElementById('status');
 const featuresEl = document.getElementById('features');
 const FEATURE_KEY = 'tablecube-features-v1';
@@ -190,6 +237,22 @@ function chosenFeatures() {
 for (const inp of pickerInputs) {
   inp.addEventListener('change', () => {
     try { localStorage.setItem(FEATURE_KEY, JSON.stringify(chosenFeatures())); } catch { /* ignore */ }
+  });
+}
+
+// Table setup: 'corners' (point at the 4 corners) or 'detect' (camera). ?setup= overrides.
+const SETUP_KEY = 'tablecube-setup-v1';
+const setupInputs = [...document.querySelectorAll('#setup-picker input[name="setup"]')];
+try {
+  const saved = params.get('setup') || localStorage.getItem(SETUP_KEY);
+  for (const inp of setupInputs) if (saved) inp.checked = inp.value === saved;
+} catch { /* ignore */ }
+function chosenSetup() {
+  return setupInputs.find((i) => i.checked)?.value || 'corners';
+}
+for (const inp of setupInputs) {
+  inp.addEventListener('change', () => {
+    try { localStorage.setItem(SETUP_KEY, chosenSetup()); } catch { /* ignore */ }
   });
 }
 
@@ -242,6 +305,7 @@ async function checkSupport() {
   }
   startBtn.disabled = false;
   safeBtn.disabled = false;
+  rawBtn.disabled = false;
   startBtn.textContent = 'Start AR';
   setPageStatus('Ready. Stand so the table is in front of you.');
 }
@@ -249,12 +313,36 @@ async function checkSupport() {
 // ---------------------------------------------------------------------------
 // three.js scene
 // ---------------------------------------------------------------------------
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+// We create the WebGL2 context ourselves with xrCompatible: true (like the raw test).
+// Otherwise three.js calls gl.makeXRCompatible() inside setSession, which on Android
+// Chromium can lose/recreate the GL context in the middle of starting the session.
+// ?xrcompat=0 goes back to three.js's own context for comparison.
+const glCanvas = document.createElement('canvas');
+const glAttributes = {
+  alpha: true,
+  antialias: params.get('aa') !== '0',
+  depth: true,
+  stencil: false,
+  premultipliedAlpha: true,
+  preserveDrawingBuffer: false,
+  powerPreference: 'default',
+  xrCompatible: params.get('xrcompat') !== '0',
+};
+const glContext = glCanvas.getContext('webgl2', glAttributes);
+const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, context: glContext, ...glAttributes });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const gl = renderer.getContext();
+info('WebGL context', {
+  xrCompatible: gl.getContextAttributes()?.xrCompatible ?? 'not reported',
+  antialias: gl.getContextAttributes()?.antialias,
+  renderer: (() => {
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  })(),
+});
 
 renderer.domElement.addEventListener('webglcontextlost', (e) => {
   e.preventDefault();
@@ -986,6 +1074,371 @@ function switchToGaze(reason) {
 }
 
 // ---------------------------------------------------------------------------
+// Corner calibration: aim the controller at the 4 table corners, press the trigger
+// ---------------------------------------------------------------------------
+// Corner 1: hit-test along the controller ray → detected planes → controller tip.
+// Corners 2–4: the ray meets the horizontal plane at the height of the corners so far
+// (or the controller tip, if it touches the table), so aiming at the very edge of the
+// table can't slip onto the floor behind it.
+
+// Fits a rectangle to 4 corners given in any order. Pure function: points are {x, y, z}.
+// Returns centre, yaw (three.js rotation.y that turns local +X onto the long side),
+// length, width and how far the corners are from a perfect rectangle.
+function rectFromCorners(points) {
+  const n = points.length;
+  let cx = 0, cz = 0, y = 0, minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    cx += p.x; cz += p.z; y += p.y;
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  }
+  cx /= n; cz /= n; y /= n;
+  // Order around the centre, so the click order doesn't matter.
+  const ps = [...points].sort((a, b) => Math.atan2(a.z - cz, a.x - cx) - Math.atan2(b.z - cz, b.x - cx));
+  const edges = ps.map((p, i) => {
+    const q = ps[(i + 1) % n];
+    return { a: Math.atan2(q.z - p.z, q.x - p.x), len: Math.hypot(q.x - p.x, q.z - p.z) };
+  });
+  // Opposite edges (0/2 and 1/3) point in opposite directions; wrapHalf ignores that.
+  const angA = edges[0].a + wrapHalf(edges[2].a - edges[0].a) / 2;
+  const angB = edges[1].a + wrapHalf(edges[3].a - edges[1].a) / 2;
+  const skew = wrapHalf(angB - angA - Math.PI / 2);
+  let axis = angA + skew / 2; // best compromise between both edge pairs
+  // Size: a rectangle's corners all lie at ±L/2 and ±W/2 along its own axes.
+  const ca = Math.cos(axis), sa = Math.sin(axis);
+  let su = 0, sv = 0;
+  for (const p of ps) {
+    const rx = p.x - cx, rz = p.z - cz;
+    su += Math.abs(rx * ca + rz * sa);
+    sv += Math.abs(-rx * sa + rz * ca);
+  }
+  let length = (2 * su) / n, width = (2 * sv) / n;
+  if (width > length) {
+    [length, width] = [width, length];
+    axis += Math.PI / 2;
+  }
+  const mismatch = Math.max(
+    Math.abs(edges[0].len - edges[2].len) / Math.max(edges[0].len, edges[2].len, 1e-6),
+    Math.abs(edges[1].len - edges[3].len) / Math.max(edges[1].len, edges[3].len, 1e-6),
+  );
+  return {
+    cx, cz, y, yaw: -axis, length, width,
+    skewDeg: Math.abs(skew) * 180 / Math.PI,
+    mismatch,                 // 0 = opposite edges equally long
+    heightSpread: maxY - minY,
+  };
+}
+
+const calib = {
+  points: [],             // THREE.Vector3 per placed corner
+  hows: [],               // how each corner was measured (for the log)
+  sources: new Map(),     // XRInputSource → { hit: XRHitTestSource | null, aim }
+  active: null,           // input source whose laser is shown
+  done: false,
+  lastPlace: 0,
+  lastBumper: 0,
+};
+
+const calibGroup = new THREE.Group();
+calibGroup.visible = false;
+scene.add(calibGroup);
+// Bright colours: the Magic Leap 2 display is additive, dark = invisible.
+const CORNER_COLOURS = [0xff5ad1, 0xffd60a, 0x5affc8, 0x5ac8ff];
+
+function makeDynamicLine(maxPoints, color) {
+  const geo = new THREE.BufferGeometry();
+  const attr = new THREE.BufferAttribute(new Float32Array(maxPoints * 3), 3);
+  attr.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('position', attr);
+  geo.setDrawRange(0, 0);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color }));
+  line.frustumCulled = false;
+  calibGroup.add(line);
+  return {
+    line,
+    set(points) {
+      const k = Math.min(points.length, maxPoints);
+      for (let i = 0; i < k; i++) attr.setXYZ(i, points[i].x, points[i].y, points[i].z);
+      attr.needsUpdate = true;
+      geo.setDrawRange(0, k);
+    },
+  };
+}
+const laser = makeDynamicLine(2, 0xffffff);
+const cornerEdges = makeDynamicLine(6, 0xffd60a);
+
+const cursorMat = new THREE.MeshBasicMaterial({ color: CORNER_COLOURS[0], side: THREE.DoubleSide });
+const aimCursor = new THREE.Group();
+aimCursor.add(new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32).rotateX(-Math.PI / 2), cursorMat));
+aimCursor.add(new THREE.Mesh(new THREE.SphereGeometry(0.006, 12, 8), cursorMat));
+aimCursor.visible = false;
+calibGroup.add(aimCursor);
+
+const cornerGeo = new THREE.SphereGeometry(0.012, 16, 12);
+const cornerMarkers = CORNER_COLOURS.map((c) => {
+  const m = new THREE.Mesh(cornerGeo, new THREE.MeshBasicMaterial({ color: c }));
+  m.visible = false;
+  calibGroup.add(m);
+  return m;
+});
+
+const _m2 = new THREE.Matrix4();
+
+function trackInputSource(src) {
+  if (src.targetRayMode !== 'tracked-pointer' || calib.sources.has(src)) return;
+  const entry = { hit: null, aim: null };
+  calib.sources.set(src, entry);
+  if (!state.features['hit-test'] || !state.session) return;
+  state.session.requestHitTestSource({ space: src.targetRaySpace })
+    .then((hs) => {
+      if (calib.sources.get(src) === entry) {
+        entry.hit = hs;
+        once('ctrl-hit-ok', 'info', 'Controller hit-test ready');
+      } else {
+        try { hs.cancel(); } catch { /* ignore */ }
+      }
+    })
+    .catch((err) => once('ctrl-hit-fail', 'warn', 'Controller hit-test failed (using planes / controller tip)', errText(err)));
+}
+
+function untrackInputSource(src) {
+  const entry = calib.sources.get(src);
+  if (!entry) return;
+  try { entry.hit?.cancel(); } catch { /* already gone */ }
+  calib.sources.delete(src);
+  if (calib.active === src) calib.active = null;
+}
+
+function hasController() {
+  for (const s of calib.sources.keys()) if (s.gamepad) return true;
+  return false;
+}
+
+function pickActiveSource() {
+  if (calib.active && calib.sources.has(calib.active)) return calib.active;
+  let best = null;
+  for (const s of calib.sources.keys()) {
+    if (s.gamepad) return s; // the Magic Leap controller wins over hands
+    if (!best || s.handedness === 'right') best = s;
+  }
+  return best;
+}
+
+function cornerHeightSoFar() {
+  if (!calib.points.length) return null;
+  return calib.points.reduce((s, p) => s + p.y, 0) / calib.points.length;
+}
+
+// Where this input source is pointing at right now: { origin, dir, point, how }.
+function aimPoint(frame, refSpace, src, entry) {
+  const rp = frame.getPose(src.targetRaySpace, refSpace);
+  if (!rp) return null;
+  _m.fromArray(rp.transform.matrix);
+  const origin = new THREE.Vector3().setFromMatrixPosition(_m);
+  const dir = new THREE.Vector3(0, 0, -1).transformDirection(_m);
+  const onPlane = (planeY) => {
+    if (dir.y > -1e-3) return null; // pointing up or level: never reaches the table
+    const t = (planeY - origin.y) / dir.y;
+    if (t <= 0 || t > CONFIG.maxDistance) return null;
+    return origin.clone().addScaledVector(dir, t);
+  };
+
+  const tableY = cornerHeightSoFar();
+  if (tableY !== null) {
+    if (Math.abs(origin.y - tableY) < CONFIG.touchDistance) {
+      return { origin, dir, point: new THREE.Vector3(origin.x, tableY, origin.z), how: 'controller tip' };
+    }
+    return { origin, dir, point: onPlane(tableY), how: 'ray on table plane' };
+  }
+
+  // First corner: the table height is still unknown.
+  if (entry.hit) {
+    const minY = floorY() + CONFIG.minTableHeight;
+    for (const r of frame.getHitTestResults(entry.hit)) {
+      const p = r.getPose(refSpace);
+      if (!p) continue;
+      _m2.fromArray(p.transform.matrix);
+      const normalY = _m2.elements[5]; // hit pose's Y axis = surface normal
+      if (p.transform.position.y < minY || normalY < 0.8) continue; // floor or wall
+      const q = p.transform.position;
+      return { origin, dir, point: new THREE.Vector3(q.x, q.y, q.z), how: 'hit-test' };
+    }
+  }
+  if (state.features['plane-detection']) {
+    const y = heightFromPlanes(frame, refSpace, { origin, dir });
+    const point = y !== null ? onPlane(y) : null;
+    if (point) return { origin, dir, point, how: 'plane' };
+  }
+  return { origin, dir, point: origin.clone(), how: 'controller tip' };
+}
+
+function startCalibration(reason) {
+  calib.points.length = 0;
+  calib.hows.length = 0;
+  calib.done = false;
+  calib.lastPlace = 0;
+  for (const m of cornerMarkers) m.visible = false;
+  resetTracking();
+  outline.visible = false;
+  calibGroup.visible = true;
+  info('Corner calibration started', reason);
+}
+
+// Ignore hand pinches/grabs while the controller is connected (they fire by accident).
+function acceptInput(src, what) {
+  if (src && !src.gamepad && hasController()) {
+    once('ignore-hand-' + what, 'info', `Ignoring hand ${what} while the controller is connected`);
+    return false;
+  }
+  return true;
+}
+
+function placeCorner(src) {
+  if (calib.done) return; // use the bumper to calibrate again
+  if (!acceptInput(src, 'pinch')) return;
+  const now = performance.now();
+  if (now - calib.lastPlace < 350) return; // double press
+  if (src && calib.sources.has(src)) calib.active = src;
+  const s = pickActiveSource();
+  const aim = s ? calib.sources.get(s)?.aim : null;
+  if (!aim?.point) {
+    warn('Cannot place a corner: the controller is not pointing at the table');
+    return;
+  }
+  if (calib.points.some((p) => p.distanceTo(aim.point) < 0.05)) {
+    info('Ignored: less than 5 cm from a corner that is already placed');
+    return;
+  }
+  calib.lastPlace = now;
+  const i = calib.points.length;
+  calib.points.push(aim.point.clone());
+  calib.hows.push(aim.how);
+  cornerMarkers[i].position.copy(aim.point);
+  cornerMarkers[i].visible = true;
+  info(`Corner ${i + 1} placed`, {
+    at: [aim.point.x, aim.point.y, aim.point.z].map((v) => +v.toFixed(3)),
+    how: aim.how,
+    aboveFloor: +(aim.point.y - floorY()).toFixed(2),
+  });
+  if (calib.points.length === 4) finishCalibration();
+}
+
+function undoCorner() {
+  if (!calib.points.length) return;
+  calib.points.pop();
+  calib.hows.pop();
+  cornerMarkers[calib.points.length].visible = false;
+  info(`Corner ${calib.points.length + 1} removed`);
+}
+
+function finishCalibration() {
+  const r = rectFromCorners(calib.points);
+  const radius = CONFIG.cornerRadius ?? 0;
+  calib.done = true;
+  state.locked = true;
+  state.table = { pos: new THREE.Vector3(r.cx, r.y, r.cz), yaw: r.yaw, length: r.length, width: r.width, radius };
+  tableAnchor.position.copy(state.table.pos);
+  tableAnchor.rotation.set(0, r.yaw, 0);
+  updateOutline(r.length, r.width, radius);
+  outline.visible = true;
+  tableAnchor.visible = true;
+  laser.set([]);
+  cornerEdges.set([]);
+  aimCursor.visible = false;
+  info('Table calibrated', {
+    centre: [r.cx, r.y, r.cz].map((v) => +v.toFixed(3)),
+    size: `${r.length.toFixed(2)} x ${r.width.toFixed(2)} m`,
+    yawDeg: +(r.yaw * 180 / Math.PI).toFixed(1),
+    aboveFloor: +(r.y - floorY()).toFixed(2),
+    skewDeg: +r.skewDeg.toFixed(1),
+    edgeMismatch: +r.mismatch.toFixed(2),
+    heightSpread: +r.heightSpread.toFixed(3),
+    how: calib.hows,
+  });
+  if (r.skewDeg > 10 || r.mismatch > 0.15) {
+    warn('The 4 corners are far from a rectangle. Press the bumper to calibrate again if the outline looks wrong.');
+  }
+}
+
+// Bumper (top button) = undo the last corner, or calibrate again once done.
+// It can arrive as a 'squeeze' event and/or via polling the gamepad; one press = one action.
+function bumperAction(src, via) {
+  if (!acceptInput(src, 'grab')) return;
+  const now = performance.now();
+  if (now - calib.lastBumper < 400) return;
+  calib.lastBumper = now;
+  once('bumper-via-' + via, 'info', 'Bumper detected via ' + via);
+  if (calib.done) startCalibration('bumper: calibrate again');
+  else undoCorner();
+}
+
+function onSqueeze(e) {
+  if (state.mode !== 'corners') {
+    debugPanel.toggle();
+    return;
+  }
+  bumperAction(e?.inputSource, 'squeeze event');
+}
+
+// The Magic Leap 2 browser doesn't fire 'squeeze' for the bumper, so we poll the gamepad.
+// xr-standard: 0 = trigger, 1 = squeeze. The ML2 controller ('magicleap-one' profile)
+// reports the bumper as button 5 (seen in the logs), so both count as the bumper.
+const BUMPER_BUTTONS = [1, 5];
+function pollControllerButtons() {
+  for (const [src, entry] of calib.sources) {
+    const buttons = src.gamepad?.buttons;
+    if (!buttons) continue;
+    // Hands have their own button layout (a grab shows up as button 4): skip them.
+    if (src.profiles.some((p) => p.startsWith('generic-hand'))) continue;
+    entry.prev ??= [];
+    for (let i = 0; i < buttons.length; i++) {
+      const down = buttons[i].pressed;
+      if (down && !entry.prev[i]) {
+        once('btn-' + i, 'info', `Controller button ${i} pressed (first time)`, { profiles: src.profiles });
+        if (BUMPER_BUTTONS.includes(i)) bumperAction(src, 'gamepad button ' + i);
+      }
+      entry.prev[i] = down;
+    }
+  }
+}
+
+function cornersStep(frame, refSpace) {
+  pollControllerButtons();
+  for (const [src, entry] of calib.sources) entry.aim = aimPoint(frame, refSpace, src, entry);
+  if (calib.done) {
+    const t = state.table;
+    setHud('Table calibrated', `${t.length.toFixed(2)} × ${t.width.toFixed(2)} m   ·   bumper = calibrate again`);
+    return;
+  }
+
+  const n = calib.points.length;
+  const src = pickActiveSource();
+  const aim = src ? calib.sources.get(src).aim : null;
+  if (aim?.point) {
+    aimCursor.position.copy(aim.point);
+    aimCursor.visible = true;
+    cursorMat.color.setHex(CORNER_COLOURS[n]);
+    laser.set(aim.how === 'controller tip' ? [] : [aim.origin, aim.point]);
+  } else if (aim) {
+    aimCursor.visible = false;
+    laser.set([aim.origin, aim.origin.clone().addScaledVector(aim.dir, 2)]);
+  } else {
+    aimCursor.visible = false;
+    laser.set([]);
+  }
+  const path = [...calib.points];
+  if (aimCursor.visible) path.push(aimCursor.position);
+  if (path.length === 4) path.push(path[0]); // preview the closed outline
+  cornerEdges.set(path);
+
+  let hint = 'bumper = undo';
+  if (!src) hint = 'no controller or hand ray found';
+  else if (!aim?.point) hint = 'point down at the table';
+  else if (n === 0 && aim.how === 'controller tip') hint = 'no surface found: touch the corner with the controller tip';
+  else hint = `${aim.how}   ·   ${n ? 'bumper = undo' : 'any order'}`;
+  setHud(`Corner ${n + 1} of 4: aim at a table corner, press the trigger`, hint);
+}
+
+// ---------------------------------------------------------------------------
 // Per-frame logic
 // ---------------------------------------------------------------------------
 function readCameraPixels(frame, view) {
@@ -1190,7 +1643,11 @@ function gazeStep(frame, refSpace) {
   setHud(line1, 'gaze mode (no camera feed)   ·   ' + featureLine());
 }
 
-function onSelect() {
+function onSelect(e) {
+  if (state.mode === 'corners') {
+    placeCorner(e?.inputSource);
+    return;
+  }
   if (state.mode === 'camera') {
     info('Trigger: detecting the table again');
     resetTracking();
@@ -1219,7 +1676,18 @@ function onSelect() {
 function onXRFrame(time, frame) {
   state.renderedFrames++;
   state.fpsFrames++;
-  if (state.renderedFrames === 1) info('First XR frame');
+  if (state.renderedFrames === 1) {
+    // The base layer only becomes visible in renderState from the first frame on.
+    const base = frame.session.renderState.baseLayer;
+    info('First XR frame', base
+      ? {
+        layer: 'classic XRWebGLLayer',
+        framebuffer: `${base.framebufferWidth}x${base.framebufferHeight}`,
+        antialias: base.antialias,
+        fixedFoveation: base.fixedFoveation,
+      }
+      : { layer: 'WebXR Layers (projection layer)' });
+  }
 
   if (time - state.lastHeartbeat > CONFIG.heartbeatMs) {
     if (state.lastHeartbeat) {
@@ -1237,17 +1705,132 @@ function onXRFrame(time, frame) {
     setHud('Tracking lost — look around slowly', featureLine());
     return;
   }
-  if (state.mode === 'camera') cameraStep(time, frame, pose, refSpace);
+  if (state.mode === 'corners') cornersStep(frame, refSpace);
+  else if (state.mode === 'camera') cameraStep(time, frame, pose, refSpace);
   else gazeStep(frame, refSpace);
 }
 
 // ---------------------------------------------------------------------------
 // Start / end AR
 // ---------------------------------------------------------------------------
+
+// three.js r170 uses the WebXR Layers path (projection layer + 4x multisampled target)
+// whenever the browser supports layers, which the Magic Leap 2 browser does. That path
+// is the most likely cause of the browser crash. By default we hide layer support from
+// three.js during setup, so it uses the classic XRWebGLLayer instead.
+async function attachRenderer(session, useLayers) {
+  const hasLayers = session.renderState.layers !== undefined;
+  const classic = !useLayers || !hasLayers;
+  info('Attaching three.js renderer…', {
+    path: classic ? 'classic XRWebGLLayer' : 'WebXR Layers (projection layer)',
+    browserSupportsLayers: hasLayers,
+    antialias: params.get('aa') !== '0',
+  });
+  if (!classic) {
+    await renderer.xr.setSession(session);
+    return;
+  }
+  const getter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(session), 'renderState')?.get
+    ?? Object.getOwnPropertyDescriptor(XRSession.prototype, 'renderState')?.get;
+  if (hasLayers && getter) {
+    Object.defineProperty(session, 'renderState', {
+      configurable: true,
+      get() {
+        const rs = getter.call(session);
+        return new Proxy(rs, {
+          get(target, key) {
+            if (key === 'layers') return undefined;
+            const v = Reflect.get(target, key, target);
+            return typeof v === 'function' ? v.bind(target) : v;
+          },
+        });
+      },
+    });
+  }
+  try {
+    await renderer.xr.setSession(session);
+  } finally {
+    delete session.renderState; // back to the browser's own property
+  }
+}
+
+// Bare WebXR, no three.js: clears the view and draws a small cyan square in each eye.
+// If this also crashes the browser, the problem is the headset/browser, not our code.
+async function rawXRTest() {
+  startBtn.disabled = true;
+  safeBtn.disabled = true;
+  rawBtn.disabled = true;
+  info('RAW TEST: plain WebXR without three.js, no extra features');
+  const canvas = document.createElement('canvas');
+  const g = canvas.getContext('webgl2', { xrCompatible: true, alpha: true, antialias: false });
+  const done = () => { startBtn.disabled = false; safeBtn.disabled = false; rawBtn.disabled = false; };
+  if (!g) { error('RAW TEST: no WebGL2 context'); done(); return; }
+
+  let session;
+  try {
+    session = await navigator.xr.requestSession('immersive-ar');
+  } catch (err) {
+    error('RAW TEST: requestSession failed', errText(err));
+    done();
+    return;
+  }
+  info('RAW TEST: session started', { blend: session.environmentBlendMode });
+  let frames = 0;
+  session.addEventListener('end', () => {
+    info('RAW TEST: session ended', { frames });
+    setPageStatus(`Raw test ended after ${frames} frames.`);
+    done();
+  });
+  try {
+    const layer = new XRWebGLLayer(session, g, { antialias: false, alpha: true });
+    session.updateRenderState({ baseLayer: layer });
+    info('RAW TEST: XRWebGLLayer', { size: `${layer.framebufferWidth}x${layer.framebufferHeight}` });
+    const ref = await session.requestReferenceSpace('local');
+    info('RAW TEST: reference space ready, starting frames');
+    const t0 = performance.now();
+    const onFrame = (time, frame) => {
+      session.requestAnimationFrame(onFrame);
+      frames++;
+      if (frames === 1) info('RAW TEST: first frame');
+      if (frames % 300 === 0) info('RAW TEST: still running', { frames });
+      const pose = frame.getViewerPose(ref);
+      g.bindFramebuffer(g.FRAMEBUFFER, layer.framebuffer);
+      g.disable(g.SCISSOR_TEST);
+      g.clearColor(0, 0, 0, 0);
+      g.clear(g.COLOR_BUFFER_BIT | g.DEPTH_BUFFER_BIT);
+      if (pose) {
+        g.enable(g.SCISSOR_TEST);
+        g.clearColor(0.2, 0.8, 1.0, 1.0);
+        for (const view of pose.views) {
+          const vp = layer.getViewport(view);
+          const s = Math.round(Math.min(vp.width, vp.height) * 0.12);
+          g.scissor(vp.x + Math.round(vp.width / 2 - s / 2), vp.y + Math.round(vp.height / 2 - s / 2), s, s);
+          g.clear(g.COLOR_BUFFER_BIT);
+        }
+        g.disable(g.SCISSOR_TEST);
+      }
+      if (time && performance.now() - t0 > 15000) {
+        info('RAW TEST: 15 s without a crash, ending the session');
+        session.end().catch(() => {});
+      }
+    };
+    session.requestAnimationFrame(onFrame);
+  } catch (err) {
+    error('RAW TEST: setup failed', errText(err));
+    session.end().catch(() => {});
+  }
+}
 async function startAR(requested) {
   startBtn.disabled = true;
   safeBtn.disabled = true;
+  rawBtn.disabled = true;
   onceKeys.clear();
+  const setup = chosenSetup();
+  if (setup === 'corners' && requested.includes('camera-access')) {
+    // Corner calibration doesn't use the camera, so don't ask for the permission.
+    requested = requested.filter((f) => f !== 'camera-access');
+    info('Corner calibration: not requesting camera-access');
+  }
   setPageStatus('Starting AR…');
   info('Requesting immersive-ar session', { optionalFeatures: requested });
 
@@ -1259,6 +1842,7 @@ async function startAR(requested) {
     setPageStatus('Could not start AR: ' + err.message);
     startBtn.disabled = false;
     safeBtn.disabled = false;
+    rawBtn.disabled = false;
     return;
   }
 
@@ -1269,7 +1853,11 @@ async function startAR(requested) {
   session.addEventListener('end', onSessionEnd);
   session.addEventListener('visibilitychange', () => info('Session visibility', session.visibilityState));
   session.addEventListener('inputsourceschange', (e) => {
-    for (const s of e.added) info('Input added', { hand: s.handedness, mode: s.targetRayMode, profiles: s.profiles });
+    for (const s of e.added) {
+      info('Input added', { hand: s.handedness, mode: s.targetRayMode, profiles: s.profiles });
+      trackInputSource(s);
+    }
+    for (const s of e.removed) untrackInputSource(s);
   });
 
   // Older browsers don't report enabledFeatures; then we just try what was requested.
@@ -1290,8 +1878,9 @@ async function startAR(requested) {
 
   state.usingFloor = state.features['local-floor'];
   renderer.xr.setReferenceSpaceType(state.usingFloor ? 'local-floor' : 'local');
+  const useLayers = document.getElementById('use-layers')?.checked === true;
   try {
-    await renderer.xr.setSession(session);
+    await attachRenderer(session, useLayers);
     info('Renderer attached', { referenceSpace: state.usingFloor ? 'local-floor' : 'local' });
   } catch (err) {
     warn('setSession failed, retrying with "local"', errText(err));
@@ -1299,7 +1888,7 @@ async function startAR(requested) {
     state.features['local-floor'] = false;
     renderer.xr.setReferenceSpaceType('local');
     try {
-      await renderer.xr.setSession(session);
+      await attachRenderer(session, useLayers);
       info('Renderer attached', { referenceSpace: 'local' });
     } catch (err2) {
       error('setSession failed again, ending session', errText(err2));
@@ -1314,13 +1903,19 @@ async function startAR(requested) {
     lastHeartbeat: 0, fpsFrames: 0, lastRayRequest: 0,
     glBinding: null, reader: null, rayHitSource: null, viewerHitSource: null,
   });
-  state.mode = 'camera';
-  outline.visible = true;
-  if (!state.features['camera-access']) switchToGaze('camera feed not requested or not granted');
-  else info('Camera mode: the camera binding is created once the first camera image arrives');
+  for (const s of session.inputSources) trackInputSource(s);
+  if (setup === 'corners') {
+    state.mode = 'corners';
+    startCalibration('session start');
+  } else {
+    state.mode = 'camera';
+    outline.visible = true;
+    if (!state.features['camera-access']) switchToGaze('camera feed not requested or not granted');
+    else info('Camera mode: the camera binding is created once the first camera image arrives');
+  }
 
   session.addEventListener('select', onSelect);
-  session.addEventListener('squeeze', () => debugPanel.toggle());
+  session.addEventListener('squeeze', onSqueeze);
 
   renderer.setAnimationLoop((time, frame) => {
     if (frame) {
@@ -1333,10 +1928,19 @@ async function startAR(requested) {
       }
       drawHeadsetLog(time);
     }
+    // Milestones around the first renders: if the browser dies inside three.js's first
+    // draw into the headset, the last laptop log line says "render #1 starting".
+    const n = state.renderedFrames;
+    const milestone = frame && (n <= 3 || n === 10 || n === 60 || n === 300);
+    if (milestone) info(`XR render #${n} starting`);
     try {
       renderer.render(scene, camera);
     } catch (err) {
       once('render-err-' + (err && err.message), 'error', 'Render failed', errText(err));
+    }
+    if (milestone) {
+      const glErr = gl.getError();
+      info(`XR render #${n} done`, glErr ? { glError: '0x' + glErr.toString(16) } : undefined);
     }
   });
 
@@ -1363,16 +1967,20 @@ function onSessionEnd() {
     session: null, glBinding: null, reader: null,
     rayHitSource: null, viewerHitSource: null, rayHitPending: false,
   });
+  for (const s of [...calib.sources.keys()]) untrackInputSource(s);
+  calibGroup.visible = false;
   resetTracking();
   reticle.visible = false;
   startBtn.disabled = false;
   safeBtn.disabled = false;
+  rawBtn.disabled = false;
   startBtn.textContent = 'Start AR again';
   setPageStatus('Session ended. See the log for what happened.');
 }
 
 startBtn.addEventListener('click', () => startAR(chosenFeatures()));
 safeBtn.addEventListener('click', () => startAR([]));
+rawBtn.addEventListener('click', rawXRTest);
 window.addEventListener('resize', () => {
   if (renderer.xr.isPresenting) return;
   camera.aspect = window.innerWidth / window.innerHeight;

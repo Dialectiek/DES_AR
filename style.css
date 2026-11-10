@@ -84,6 +84,8 @@ fieldset label { display: block; padding: 3px 0; cursor: pointer; }
 fieldset input { margin-right: 8px; }
 
 .buttons { display: grid; gap: 8px; }
+.diagnostics { margin-top: 16px; }
+.diagnostics button { margin-top: 8px; }
 
 .panel button {
   width: 100%;
