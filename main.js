@@ -9,10 +9,11 @@
 //      table in metres. We fit a rounded rectangle to it: centre, direction, size and
 //      corner radius. This also removes the perspective error of using the image centre.
 //      Table height comes from: hit-test along the camera ray → detected planes → a guess.
-//   4. The outline and cube follow the detection (smoothed) and lock once stable.
+//   4. The outline and the diorama (house with PV panels + car) follow the table and lock.
 //
 // If the camera feed is not available it falls back to "gaze mode":
-// look at the table and press the trigger to place the cube.
+// look at the table and press the trigger to place the diorama.
+// Default table setup is corner calibration: aim at the 4 corners and press the trigger.
 //
 // Everything that happens is logged: on the page (bottom right), inside the headset
 // (bottom right of your view), in localStorage, and — when served by devserver.mjs —
@@ -28,7 +29,6 @@ window.__tableCubeLoaded = true;
 const params = new URLSearchParams(location.search);
 
 const CONFIG = {
-  cubeSize: 0.10,            // metres
   analysisWidth: 160,        // camera image is downscaled to this for detection
   analysisHeight: 120,
   analyseEveryNFrames: 6,    // roughly 10 detections per second at 60 fps
@@ -366,21 +366,83 @@ const tableAnchor = new THREE.Group();
 tableAnchor.visible = false;
 scene.add(tableAnchor);
 
-const cubeGeo = new THREE.BoxGeometry(CONFIG.cubeSize, CONFIG.cubeSize, CONFIG.cubeSize);
-const cube = new THREE.Mesh(cubeGeo, new THREE.MeshStandardMaterial({ color: 0x33ccff, roughness: 0.4 }));
-cube.position.y = CONFIG.cubeSize / 2;
-cube.add(new THREE.LineSegments(
-  new THREE.EdgesGeometry(cubeGeo),
-  new THREE.LineBasicMaterial({ color: 0xffffff })
-));
-tableAnchor.add(cube);
+// ---------------------------------------------------------------------------
+// Diorama: the scene on the table, loaded from assets/scenes/<name>.json with the models
+// from assets/library.json (see diorama.js). Built in real metres; this group is scaled
+// down to fit the table, so all models keep true proportions.
+// Diorama axes: +X = the table's long side, +Z = across the table, +Y = up.
+//   ?scene=demo        which scene file (assets/scenes/demo.json)
+//   ?asset=office-pv   show just one library asset (handy with ?preview=1)
+//   ?scale=50          fixed 1:50 instead of "as big as fits"
+//   ?flows=0           hide the energy flows
+// ---------------------------------------------------------------------------
+const DIORAMA = {
+  fill: 0.85,               // use at most 85% of the table
+  maxScale: 1 / 20,         // never bigger than 1:20, even on a huge table
+  fixedScale: params.has('scale') ? 1 / parseFloat(params.get('scale')) : null,
+  scene: params.get('scene') || 'demo',
+};
 
-const surfaceRing = new THREE.Mesh(
-  new THREE.RingGeometry(0.075, 0.09, 48).rotateX(-Math.PI / 2),
-  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 })
-);
-surfaceRing.position.y = 0.002;
-tableAnchor.add(surfaceRing);
+const diorama = new THREE.Group();
+tableAnchor.add(diorama);
+const dioramaState = { ground: { length: 15, width: 11 }, update: null, table: { length: 1.2, width: 0.8 } };
+
+(async function loadDiorama() {
+  const asset = params.get('asset');
+  try {
+    info('Loading diorama…', asset ? { asset } : { scene: DIORAMA.scene });
+    // Dynamic import: if the loader or a CDN file fails, the rest of the app keeps working.
+    const { buildDiorama } = await import('./diorama.js');
+    const d = await buildDiorama({
+      sceneSource: asset
+        ? { ground: 'auto', items: [{ id: asset, asset }] }
+        : `assets/scenes/${encodeURIComponent(DIORAMA.scene)}.json`,
+      libraryUrl: asset ? 'assets/library.json' : undefined,
+      log: { info, warn },
+    });
+    d.flowsGroup.visible = params.get('flows') !== '0';
+    diorama.add(d.group);
+    dioramaState.ground = d.ground;
+    dioramaState.update = d.update;
+    dioramaScale = 0; // force a log line with the real scale
+    fitDiorama(dioramaState.table.length, dioramaState.table.width);
+  } catch (err) {
+    error('Diorama failed to load, showing a placeholder', errText(err));
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshStandardMaterial({ color: 0x33ccff }));
+    box.position.y = 0.05;
+    diorama.add(box);
+    dioramaState.ground = { length: 0.1 / DIORAMA.maxScale, width: 0.1 / DIORAMA.maxScale };
+  }
+})();
+
+// Scale the diorama to the table: true proportions, as big as fits.
+let dioramaScale = 0;
+function fitDiorama(tableLength, tableWidth) {
+  dioramaState.table = { length: tableLength, width: tableWidth };
+  const { length, width } = dioramaState.ground;
+  let s = DIORAMA.fixedScale ?? Math.min(
+    (DIORAMA.fill * tableLength) / length,
+    (DIORAMA.fill * tableWidth) / width,
+    DIORAMA.maxScale,
+  );
+  if (!(s > 0)) s = 1 / 100;
+  diorama.scale.setScalar(s);
+  if (Math.abs(s - dioramaScale) > 0.05 * s) {
+    info('Diorama scaled', {
+      scale: '1:' + Math.round(1 / s),
+      footprint: `${(length * s * 100).toFixed(0)} x ${(width * s * 100).toFixed(0)} cm`,
+    });
+  }
+  dioramaScale = s;
+}
+
+// Called every frame with the time since the last frame (seconds): animates the flows.
+let lastDioramaTime = 0;
+function animateDiorama(time) {
+  const dt = lastDioramaTime ? Math.min(0.1, (time - lastDioramaTime) / 1000) : 0;
+  lastDioramaTime = time;
+  if (dioramaState.update && tableAnchor.visible) dioramaState.update(dt);
+}
 
 // Rounded-rectangle outline of the detected table.
 const outline = new THREE.LineLoop(
@@ -411,6 +473,7 @@ function updateOutline(length, width, radius) {
   outline.geometry.dispose();
   outline.geometry = new THREE.BufferGeometry().setFromPoints(roundedRectPoints(length, width, radius));
   outlineDims = { length, width, radius };
+  fitDiorama(length, width);
 }
 
 // Reticle for gaze (fallback) mode.
@@ -1927,6 +1990,7 @@ async function startAR(requested) {
         if (state.frameErrors > 20 && state.mode === 'camera') switchToGaze('too many frame errors');
       }
       drawHeadsetLog(time);
+      try { animateDiorama(time); } catch (err) { once('anim-err', 'error', 'Flow animation failed', errText(err)); }
     }
     // Milestones around the first renders: if the browser dies inside three.js's first
     // draw into the headset, the last laptop log line says "render #1 starting".
@@ -1988,4 +2052,33 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-checkSupport();
+// ?preview=1 — look at the diorama on a normal screen (no headset, no WebXR), on a
+// virtual 1.6 x 0.8 m table. Handy for checking models and layout from the laptop.
+function startPreview() {
+  info('Preview mode: diorama on a virtual 1.6 x 0.8 m table');
+  document.body.classList.add('preview');
+  Object.assign(renderer.domElement.style, { display: 'block', position: 'fixed', inset: '0', zIndex: '0' });
+  renderer.setClearColor(0x20252c, 1);
+  tableAnchor.visible = true;
+  outline.visible = true;
+  updateOutline(1.6, 0.8, 0);
+  const table = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.04, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.9 })
+  );
+  table.position.y = -0.02;
+  tableAnchor.add(table);
+  const angle = params.has('angle') ? parseFloat(params.get('angle')) : null; // fixed view, degrees
+  const dist = parseFloat(params.get('dist') ?? '0.9');                       // camera distance, m
+  const height = parseFloat(params.get('height') ?? '0.55');
+  renderer.setAnimationLoop((time) => {
+    const a = angle !== null ? THREE.MathUtils.degToRad(angle) : time * 0.0002;
+    camera.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
+    camera.lookAt(0, 0.05, 0);
+    animateDiorama(time);
+    renderer.render(scene, camera);
+  });
+}
+
+if (params.get('preview') === '1') startPreview();
+else checkSupport();

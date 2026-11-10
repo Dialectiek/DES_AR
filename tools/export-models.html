@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Export procedural models</title>
+  <!-- Development tool, not part of the app. Needs: node devserver.mjs 8001 --allow-save -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>body { font: 14px/1.5 ui-monospace, Consolas, monospace; padding: 16px; }</style>
+</head>
+<body>
+  <h1>Export procedural models → assets/models/*.glb</h1>
+  <pre id="out">Working…
+</pre>
+  <script type="module">
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+    import { BUILDERS } from './model-builders.js';
+
+    const out = document.getElementById('out');
+    const say = (t) => { out.textContent += t + '\n'; };
+    let ok = 0;
+    for (const [id, build] of Object.entries(BUILDERS)) {
+      try {
+        const obj = build();
+        obj.name = id;
+        const glb = await new GLTFExporter().parseAsync(obj, { binary: true });
+        const r = await fetch('/save-asset?name=' + encodeURIComponent(id + '.glb'), { method: 'POST', body: glb });
+        say(`${id}.glb  ${glb.byteLength} bytes  →  ${r.status === 204 ? 'saved' : 'FAILED ' + r.status + ' ' + (await r.text())}`);
+        if (r.status === 204) ok++;
+      } catch (err) {
+        say(`${id}: ERROR ${err.message}`);
+      }
+    }
+    say(`Done: ${ok} of ${Object.keys(BUILDERS).length} saved.`);
+    document.title = 'done';
+  </script>
+</body>
+</html>

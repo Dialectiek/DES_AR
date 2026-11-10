@@ -1,0 +1,26 @@
+{
+  "about": "Scene layout in real metres. x = along the table's long side, z = across (towards the viewer's side = +z), rotation in degrees around the vertical. Ground features are flat strips on the lawn. Flows connect 'item' or 'item:port' (port = node port_<name> in the model; without a port the top of the model is used). kw = power in kilowatts; kind = solar | ev | share | import | export | battery.",
+  "library": "../library.json",
+  "ground": {
+    "length": 36,
+    "width": 17,
+    "strips": [
+      { "name": "pavement", "x": 0, "z": 7.9, "length": 36, "width": 1.2 },
+      { "name": "house path", "x": -12.5, "z": 4.8, "length": 1.4, "width": 4.4 },
+      { "name": "driveway", "x": -5.4, "z": 3.4, "length": 3.4, "width": 7.8 },
+      { "name": "office path", "x": 7.5, "z": 5.6, "length": 3.2, "width": 3.4 }
+    ]
+  },
+  "items": [
+    { "id": "house", "asset": "house-pv", "x": -12.5, "z": -1.5 },
+    { "id": "car", "asset": "car-hatchback", "x": -5.4, "z": 3.2 },
+    { "id": "office", "asset": "office-pv", "x": 7.5, "z": -2.5 },
+    { "id": "grid", "asset": "power-box", "x": -1.0, "z": 6.4, "rotation": 0 }
+  ],
+  "flows": [
+    { "from": "house:pv", "to": "car", "kw": 3.7, "kind": "ev", "label": "Solar → EV" },
+    { "from": "house:pv", "to": "office:meter", "kw": 1.5, "kind": "share", "label": "Shared" },
+    { "from": "office:pv", "to": "office:meter", "kw": 14.0, "kind": "solar", "label": "Office PV" },
+    { "from": "grid", "to": "office:meter", "kw": 4.2, "kind": "import", "label": "Grid" }
+  ]
+}

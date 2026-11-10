@@ -169,3 +169,5 @@ code { font-size: 0.9em; }
 #log-list li.old { color: var(--log-old); font-weight: 400; }
 
 .log-panel.collapsed #log-list { display: none; }
+/* ?preview=1: diorama on the laptop screen, start card hidden. */
+body.preview .panel { display: none; }

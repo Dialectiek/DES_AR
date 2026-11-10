@@ -17,8 +17,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.argv[2] || process.env.PORT || 8000);
+const PORT = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || process.env.PORT || 8000);
 const LOG_FILE = path.join(ROOT, 'xr-log.txt');
+// --allow-save enables POST /save-asset (used by tools/export-models.html). Only use it on a
+// port that is NOT forwarded through a public tunnel: it lets the page write files.
+const ALLOW_SAVE = process.argv.includes('--allow-save');
+const MODELS_DIR = path.join(ROOT, 'assets', 'models');
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -74,6 +78,30 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/save-asset' && req.method === 'POST') {
+    const name = url.searchParams.get('name') || '';
+    if (!ALLOW_SAVE || !/^[a-z0-9-]+\.glb$/.test(name)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end(ALLOW_SAVE ? 'Bad name (use lowercase-name.glb)' : 'Saving is off (start with --allow-save)');
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > 50_000_000) req.destroy();
+      else chunks.push(c);
+    });
+    req.on('end', () => {
+      fs.mkdirSync(MODELS_DIR, { recursive: true });
+      fs.writeFileSync(path.join(MODELS_DIR, name), Buffer.concat(chunks));
+      console.log(`Saved assets/models/${name} (${size} bytes)`);
+      res.writeHead(204);
+      res.end();
+    });
+    return;
+  }
+
   // Static files from this folder.
   let rel = decodeURIComponent(url.pathname);
   if (rel.endsWith('/')) rel += 'index.html';
@@ -104,5 +132,6 @@ server.listen(PORT, () => {
   console.log(`  On this laptop:      http://localhost:${PORT}`);
   console.log(`  Magic Leap over USB: adb reverse tcp:${PORT} tcp:${PORT}`);
   console.log(`                       then open http://localhost:${PORT} on the headset`);
+  if (ALLOW_SAVE) console.log(`Model export enabled: open http://localhost:${PORT}/tools/export-models.html`);
   console.log(`Headset log lines appear below and in ${LOG_FILE}\n`);
 });

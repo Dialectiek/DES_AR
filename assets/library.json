@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "about": "Asset library. 'file' is relative to this file. Models are placed in real metres: 'fit' rescales a model whose units are unknown (length = longest horizontal side, height = vertical size); without 'fit' the model is already in metres (our generated models). 'ports' are the named connection points (nodes called port_<name>) used by energy flows. 'size' is the approximate real size [length, height, width] in metres, also used for the placeholder box if a model fails to load.",
+  "assets": {
+    "house-pv": {
+      "name": "House with PV",
+      "file": "models/house-pv.glb",
+      "source": "generated: tools/model-builders.js",
+      "category": "building",
+      "size": [9.7, 9.2, 8.0],
+      "ports": ["pv", "meter"],
+      "energy": { "role": "prosumer", "pvPeakKw": 5.6 }
+    },
+    "office-pv": {
+      "name": "Office with rooftop PV",
+      "file": "models/office-pv.glb",
+      "source": "generated: tools/model-builders.js",
+      "category": "building",
+      "size": [18.8, 12.1, 12.4],
+      "ports": ["pv", "meter"],
+      "energy": { "role": "prosumer", "pvPeakKw": 22.4 }
+    },
+    "car-hatchback": {
+      "name": "Electric hatchback",
+      "file": "figures/Car Hatchback by Kay Lousberg - BG0KAhmGDt.glb",
+      "source": "Kay Lousberg (Poly Pizza)",
+      "category": "vehicle",
+      "fit": { "length": 4.1 },
+      "size": [4.1, 1.9, 2.1],
+      "energy": { "role": "consumer", "chargeKw": 3.7 }
+    },
+    "car-banana": {
+      "name": "Banana car",
+      "file": "figures/cartoon banana car by Felipe Lujan-Bear - 1RjuCX8gI9w.glb",
+      "source": "Felipe Lujan-Bear (Poly Pizza)",
+      "category": "vehicle",
+      "fit": { "length": 4.2 },
+      "size": [4.2, 2.3, 1.7],
+      "energy": { "role": "consumer" }
+    },
+    "greenhouse": {
+      "name": "Greenhouse",
+      "file": "figures/Greenhouse by J-Toastie - exys3emjr1.glb",
+      "source": "J-Toastie (Poly Pizza)",
+      "category": "building",
+      "fit": { "length": 3.0 },
+      "size": [3.0, 3.1, 3.0],
+      "energy": { "role": "consumer" }
+    },
+    "power-box": {
+      "name": "Grid connection cabinet",
+      "file": "figures/Power Box by J-Toastie - WFVjj4vnGg.glb",
+      "source": "J-Toastie (Poly Pizza)",
+      "category": "grid",
+      "fit": { "height": 1.4 },
+      "size": [0.45, 1.4, 0.45],
+      "energy": { "role": "grid" }
+    },
+    "solar-panel-stand": {
+      "name": "Ground-mounted solar panel",
+      "about": "File is called 'Solar battery' but the model is a PV panel on a tilted stand.",
+      "file": "figures/Solar battery by Poly by Google - 13JTUb3ngR0.glb",
+      "source": "Poly by Google",
+      "category": "generator",
+      "fit": { "height": 1.8 },
+      "size": [1.7, 1.8, 1.5],
+      "ports": [],
+      "energy": { "role": "producer", "pvPeakKw": 0.8 }
+    },
+    "wind-turbine": {
+      "name": "Small wind turbine",
+      "file": "figures/Wind turbine by Poly by Google - 8Tke6WIyZtg.glb",
+      "source": "Poly by Google",
+      "category": "generator",
+      "fit": { "height": 30 },
+      "size": [18, 30, 6],
+      "energy": { "role": "producer" }
+    }
+  }
+}
