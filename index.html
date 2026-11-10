@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Table Cube – WebXR</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- three.js pinned to one version so nothing changes under us.
+       To run fully offline, download three.module.js next to this file
+       and point the import map at "./three.module.js" instead. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <main class="panel">
+    <h1>Table Cube</h1>
+    <p class="lead">
+      Looks for the white table in the headset's camera feed and puts a cube on it.
+    </p>
+
+    <button id="start" disabled>Checking WebXR…</button>
+    <p id="status" class="status" role="status"></p>
+
+    <details>
+      <summary>Controls in AR</summary>
+      <ul>
+        <li><b>Trigger / pinch</b> — re-detect the table (or place the cube in fallback mode)</li>
+        <li><b>Bumper / grab</b> — show or hide the camera debug view</li>
+        <li><b>Menu button</b> — exit AR</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>URL options</summary>
+      <ul>
+        <li><code>?debug=1</code> — start with the camera debug view visible</li>
+        <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
+        <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
+      </ul>
+    </details>
+
+    <ul id="features" class="features"></ul>
+  </main>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
