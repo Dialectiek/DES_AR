@@ -9,17 +9,40 @@
 //      table in metres. We fit a rounded rectangle to it: centre, direction, size and
 //      corner radius. This also removes the perspective error of using the image centre.
 //      Table height comes from: hit-test along the camera ray → detected planes → a guess.
-//   4. The outline and the diorama (house with PV panels + car) follow the table and lock.
+//   4. The outline and the content follow the table and lock.
 //
 // If the camera feed is not available it falls back to "gaze mode":
-// look at the table and press the trigger to place the diorama.
+// look at the table and press the trigger to place the content.
 // Default table setup is corner calibration: aim at the 4 corners and press the trigger.
+//
+// What goes on the table (start-page menu "build", ?build=manual|cards|demo):
+//   - manual: a palette of assets lies along the table edge nearest to you. Trigger on a
+//     palette tile picks an asset, trigger on the table places it (as often as you like).
+//     Trigger on "Done" → connect: trigger on an asset, then on a second one = connect
+//     them. Trigger on "Done" again → finished view with animated flows (manual.js, palette.js).
+//   - cards: colour squares calibrate the card colours, then trigger on a card adds the
+//     asset that assets/components.json maps its colour to (cards.js, assets.js).
+//     Trigger on two assets connects them, as in manual mode.
+//   - demo: the fixed diorama from assets/scenes/demo.json (diorama.js).
+// Link types follow from what the assets produce and consume (system.js); flows are
+// animated (links.js). Bumper = undo / step back, hold the bumper = calibrate again.
 //
 // Everything that happens is logged: on the page (bottom right), inside the headset
 // (bottom right of your view), in localStorage, and — when served by devserver.mjs —
 // live to the laptop, which is the only log that survives the browser crashing.
 
 import * as THREE from 'three';
+import {
+  dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex, describeColour,
+  worldToPixel, samplePatch, nearestColour, balanceColour, alignProjection, sampleSlots, pixelShiftToNdc,
+} from './cards.js';
+import { EnergySystem, colourForType } from './system.js';
+import {
+  loadComponents, preloadModels, makeAssetObject, disposeAssetObject, faceTowards, pickAsset, displayColour,
+} from './assets.js';
+import { LinkView } from './links.js';
+import { insideTable, backAction } from './manual.js';
+import { createPalette } from './palette.js';
 
 window.__tableCubeLoaded = true;
 
@@ -52,6 +75,21 @@ const CONFIG = {
   cameraTimeoutMs: 6000,     // switch to gaze mode if no camera image by then
   heartbeatMs: 5000,         // "still running" log line, useful to see when a crash happened
   touchDistance: 0.04,       // corner calibration: controller tip this close to the table = touching
+  scanWidth: 320,            // camera image size for card scans (cards are small)
+  scanHeight: 240,
+  scanFrames: 6,             // camera frames per scan…
+  scanFrameGapMs: 100,       // …this far apart
+  scanMinFrames: 4,          // a card must show up in this many of them
+  // The camera image is a little older than the head pose it comes with: while the head
+  // turns, cards land in the wrong place. Frames taken while turning faster are skipped.
+  scanMaxTurnDegPerS: 20,
+  slotInnerRadius: 0.025,    // colour squares: sample only the middle (radius, m) of each card
+  slotSearch: 0.1,           // …and look up to this far (m) for the camera image shift
+  slotFrames: 3,             // camera frames per colour calibration
+  patchRadius: 0.015,        // card colour = median of the camera pixels within this (m) of the aimed point
+  whiteRadius: 0.2,          // table white for white balance: from this far (m) around it
+  scanTimeoutMs: 4000,       // give up when the camera doesn't deliver
+  bumperHoldMs: 1500,        // hold the bumper this long to calibrate again
   flipCameraY: params.get('flipy') === '1',
   debug: params.get('debug') === '1',
 };
@@ -136,6 +174,11 @@ function remoteLog(line) {
 const info = (m, d) => log('info', m, d);
 const warn = (m, d) => log('warn', m, d);
 const error = (m, d) => log('error', m, d);
+
+// Bump on every change: the log and the page show it, so we can tell whether the headset
+// runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
+const APP_VERSION = 'slots v4';
+info('Table Cube version ' + APP_VERSION);
 
 const onceKeys = new Set();
 function once(key, level, msg, data) {
@@ -253,8 +296,38 @@ function chosenSetup() {
 for (const inp of setupInputs) {
   inp.addEventListener('change', () => {
     try { localStorage.setItem(SETUP_KEY, chosenSetup()); } catch { /* ignore */ }
+    updateBuildPicker();
   });
 }
+
+// What goes on the table after the corner setup: 'manual' (palette), 'cards' (colour
+// cards) or 'demo' (the diorama). ?build= overrides. Camera table detection never reaches
+// the build step, so it always shows the demo.
+const BUILD_KEY = 'tablecube-build-v1';
+const BUILD_MODES = ['manual', 'cards', 'demo'];
+const buildPicker = document.getElementById('build-picker');
+const buildInputs = [...document.querySelectorAll('#build-picker input[name="build"]')];
+try {
+  const saved = [params.get('build'), localStorage.getItem(BUILD_KEY)].find((v) => BUILD_MODES.includes(v));
+  if (saved) for (const inp of buildInputs) inp.checked = inp.value === saved;
+} catch { /* ignore */ }
+function chosenBuild() {
+  if (chosenSetup() === 'detect') return 'demo';
+  const v = buildInputs.find((i) => i.checked)?.value;
+  return BUILD_MODES.includes(v) ? v : 'manual';
+}
+function updateBuildPicker() {
+  const detect = chosenSetup() === 'detect';
+  if (buildPicker) buildPicker.disabled = detect;
+  const note = document.getElementById('build-note');
+  if (note) note.hidden = !detect;
+}
+for (const inp of buildInputs) {
+  inp.addEventListener('change', () => {
+    try { localStorage.setItem(BUILD_KEY, chosenBuild()); } catch { /* ignore */ }
+  });
+}
+updateBuildPicker();
 
 function setPageStatus(text) {
   statusEl.textContent = text;
@@ -448,8 +521,12 @@ let lastDioramaTime = 0;
 function animateDiorama(time) {
   const dt = lastDioramaTime ? Math.min(0.1, (time - lastDioramaTime) / 1000) : 0;
   lastDioramaTime = time;
-  if (dioramaState.update && tableAnchor.visible) dioramaState.update(dt);
-  if (assetLabels && tableAnchor.visible) assetLabels.update(diorama, dt);
+  if (dioramaState.update && tableAnchor.visible && diorama.visible) dioramaState.update(dt);
+  if (assetLabels) {
+    // The names belong to the diorama: hidden with it (manual and cards mode).
+    assetLabels.group.visible = diorama.visible;
+    if (tableAnchor.visible && diorama.visible) assetLabels.update(diorama, dt);
+  }
 }
 
 // Floating name panels above the assets (asset-labels.js). Loaded separately: if it fails,
@@ -467,6 +544,31 @@ async function addAssetLabels(d) {
     warn('Asset labels failed, showing the diorama without them', errText(err));
   }
 }
+
+// Energy-system components (assets/components.json) and their models, loaded at page
+// load so problems show up in the log before entering AR.
+// loaded = true once the models are in too (or loading failed): the manual palette waits for it.
+const components = { config: null, templates: new Map(), colourTable: [], error: null, loaded: false };
+components.ready = (async () => {
+  try {
+    const config = await loadComponents();
+    components.config = config;
+    components.colourTable = buildColourTable(config);
+    info('components.json loaded', {
+      cards: config.cards,
+      assets: Object.keys(config.assets),
+      colours: components.colourTable.colours.map((c) => c.name),
+    });
+    const unmapped = Object.entries(config.cards).filter(([, t]) => t === null).map(([c]) => c);
+    if (unmapped.length) info('Card colours without an asset (shown as placeholder cubes)', unmapped);
+    components.templates = await preloadModels(config, { info, warn });
+  } catch (err) {
+    components.error = errText(err);
+    error('Could not load the components', components.error);
+  } finally {
+    components.loaded = true;
+  }
+})();
 
 // Rounded-rectangle outline of the detected table.
 const outline = new THREE.LineLoop(
@@ -543,10 +645,10 @@ function setHud(line1, line2 = '') {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(255,255,255,0.95)';
   ctx.font = '600 46px system-ui, sans-serif';
-  ctx.fillText(line1, canvas.width / 2, 62);
+  ctx.fillText(line1, canvas.width / 2, 62, canvas.width - 32); // long text is squeezed to fit
   ctx.fillStyle = 'rgba(170,230,255,0.95)';
   ctx.font = '400 32px system-ui, sans-serif';
-  ctx.fillText(line2, canvas.width / 2, 142);
+  ctx.fillText(line2, canvas.width / 2, 142, canvas.width - 32);
   texture.needsUpdate = true;
 }
 
@@ -593,6 +695,74 @@ function makeDebugPanel(w, h) {
 
   return {
     get visible() { return mesh.visible; },
+    set visible(v) { mesh.visible = v; },
+    // Card scan: dimmed camera image with
+    //   - cyan line: where the calibrated table is according to the camera model. It must
+    //     lie on the real table edges in the picture; if not, the camera image and the
+    //     head pose don't line up and cards get placed in the wrong spot.
+    //   - accepted cards in their card colour, rejected blobs in a darker shade.
+    //   colours: [r, g, b] per colour label (label 1 = colours[0]).
+    updateCards(pixels, det, colours) {
+      const { labelMap, blobMap, inside } = det;
+      const n = w * h;
+      for (let i = 0, j = 0; i < n; i++, j += 4) {
+        const c = labelMap[i] ? colours[labelMap[i] - 1] : null;
+        const x = i % w;
+        const edge = inside[i] && (x === 0 || x === w - 1 || i < w || i >= n - w ||
+          !inside[i - 1] || !inside[i + 1] || !inside[i - w] || !inside[i + w]);
+        if (edge) {
+          data[j] = 0; data[j + 1] = 230; data[j + 2] = 255;
+        } else if (c && blobMap[i]) {
+          const k = blobMap[i] === 1 ? 1 : 0.4;
+          data[j] = c[0] * k; data[j + 1] = c[1] * k; data[j + 2] = c[2] * k;
+        } else {
+          const k = inside[i] ? 0.6 : 0.3;
+          data[j] = pixels[j] * k; data[j + 1] = pixels[j + 1] * k; data[j + 2] = pixels[j + 2] * k;
+        }
+        data[j + 3] = 255;
+      }
+      texture.needsUpdate = true;
+    },
+    // Colour calibration: camera image, magenta cross = where the user pointed (camera
+    // model), cyan cross = the card found there. Their distance = camera misalignment.
+    updateSample(pixels, at, sample) {
+      for (let j = 0; j < w * h * 4; j += 4) {
+        data[j] = pixels[j] * 0.7; data[j + 1] = pixels[j + 1] * 0.7; data[j + 2] = pixels[j + 2] * 0.7; data[j + 3] = 255;
+      }
+      const cross = (cx, cy, r, g, b) => {
+        const x0 = Math.round(cx), y0 = Math.round(cy);
+        for (let d = -6; d <= 6; d++) {
+          for (const [x, y] of [[x0 + d, y0], [x0, y0 + d]]) {
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            const j = (y * w + x) * 4;
+            data[j] = r; data[j + 1] = g; data[j + 2] = b;
+          }
+        }
+      };
+      cross(at.px, at.py, 255, 0, 200);
+      if (sample) cross(sample.px, sample.py, 0, 230, 255);
+      texture.needsUpdate = true;
+    },
+    // Colour squares: magenta = where each square should be (camera model), cyan = where
+    // its card was found (after the measured shift).
+    updateSlots(pixels, slots, r) {
+      this.updateSample(pixels, slots[0], null);
+      const cross = (cx, cy, c) => {
+        const x0 = Math.round(cx), y0 = Math.round(cy);
+        for (let d = -5; d <= 5; d++) {
+          for (const [x, y] of [[x0 + d, y0], [x0, y0 + d]]) {
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            const j = (y * w + x) * 4;
+            data[j] = c[0]; data[j + 1] = c[1]; data[j + 2] = c[2];
+          }
+        }
+      };
+      for (const s of slots) {
+        cross(s.px, s.py, [255, 0, 200]);
+        if (r) cross(s.px + r.shift.x, s.py + r.shift.y, [0, 230, 255]);
+      }
+      texture.needsUpdate = true;
+    },
     toggle() {
       mesh.visible = !mesh.visible;
       info('Debug view ' + (mesh.visible ? 'on' : 'off'));
@@ -624,6 +794,9 @@ function makeDebugPanel(w, h) {
   };
 }
 const debugPanel = makeDebugPanel(CONFIG.analysisWidth, CONFIG.analysisHeight);
+// Same place in view; only one of the two is shown (table detection vs card scans).
+const cardDebugPanel = makeDebugPanel(CONFIG.scanWidth, CONFIG.scanHeight);
+cardDebugPanel.visible = false;
 
 // ---------------------------------------------------------------------------
 // Camera image → small RGBA buffer (raw WebGL; three.js state is restored after)
@@ -774,26 +947,6 @@ function weightedRange(values, weights, n, lo, hi) {
   return [a, b];
 }
 
-function dilate(src, dst, w, h) {
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      dst[i] = src[i] || (x > 0 && src[i - 1]) || (x < w - 1 && src[i + 1]) ||
-        (y > 0 && src[i - w]) || (y < h - 1 && src[i + w]) ? 1 : 0;
-    }
-  }
-}
-
-function erode(src, dst, w, h) {
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      dst[i] = src[i] && (x === 0 || src[i - 1]) && (x === w - 1 || src[i + 1]) &&
-        (y === 0 || src[i - w]) && (y === h - 1 || src[i + w]) ? 1 : 0;
-    }
-  }
-}
-
 // Holes = background regions that do not touch the image border (a laptop or cup on the table).
 function fillHoles(mask, w, h) {
   const { outside, stack } = scratch;
@@ -930,27 +1083,17 @@ function detectWhiteBlobs(px, w, h) {
 //   projection: view.projectionMatrix (column-major), pose: view.transform.matrix
 // Each pixel is weighted by the floor area it covers, so near pixels don't dominate.
 function fitTableOnPlane(projection, pose, labels, label, w, h, planeY) {
-  const P = projection, M = pose;
-  const ox = M[12], oy = M[13], oz = M[14];
-  const pixelArea = (2 / (w * P[0])) * (2 / (h * P[5])); // pixel size at 1 m depth
+  const project = planeProjector(projection, pose, w, h, planeY, CONFIG.maxDistance);
+  const hit = { x: 0, z: 0, w: 0 };
   let sw = 0, sx = 0, sz = 0, sxx = 0, szz = 0, sxz = 0, used = 0;
 
   for (let py = 0; py < h; py++) {
-    const vy = (((py + 0.5) / h) * 2 - 1 + P[9]) / P[5];
     for (let pxi = 0; pxi < w; pxi++) {
       if (labels[py * w + pxi] !== label) continue;
-      const vx = (((pxi + 0.5) / w) * 2 - 1 + P[8]) / P[0];
-      // View-space direction (vx, vy, -1) rotated into the reference space.
-      const dx = M[0] * vx + M[4] * vy - M[8];
-      const dy = M[1] * vx + M[5] * vy - M[9];
-      const dz = M[2] * vx + M[6] * vy - M[10];
-      if (Math.abs(dy) < 1e-5) continue;
-      const s = (planeY - oy) / dy; // depth along the view axis
-      if (!(s > 0)) continue;
-      if (s * Math.hypot(dx, dy, dz) > CONFIG.maxDistance) continue;
-      const x = ox + s * dx;
-      const z = oz + s * dz;
-      const wgt = ((s * s) / Math.abs(dy)) * pixelArea; // square metres this pixel covers
+      if (!project(pxi, py, hit)) continue;
+      const x = hit.x;
+      const z = hit.z;
+      const wgt = hit.w; // square metres this pixel covers
       sw += wgt; sx += wgt * x; sz += wgt * z;
       sxx += wgt * x * x; szz += wgt * z * z; sxz += wgt * x * z;
       scratch.ptX[used] = x;
@@ -1075,11 +1218,13 @@ function meanLuma(px) {
 const state = {
   session: null,
   startedAt: 0,
-  mode: 'camera',          // 'camera' or 'gaze'
+  mode: 'camera',          // 'corners', 'camera' or 'gaze'
+  build: 'manual',         // what goes on the table: 'manual', 'cards' or 'demo' (start-page menu)
   usingFloor: true,
   features: {},
   glBinding: null,
   reader: null,
+  cardReader: null,        // bigger camera reader for card scans
   frameCount: 0,
   renderedFrames: 0,
   cameraWaitStart: 0,
@@ -1222,7 +1367,6 @@ const calib = {
   active: null,           // input source whose laser is shown
   done: false,
   lastPlace: 0,
-  lastBumper: 0,
 };
 
 const calibGroup = new THREE.Group();
@@ -1365,8 +1509,12 @@ function startCalibration(reason) {
   calib.lastPlace = 0;
   for (const m of cornerMarkers) m.visible = false;
   resetTracking();
+  resetBuild();
   outline.visible = false;
   calibGroup.visible = true;
+  colourCal.done = false;
+  colourCal.pending = null;
+  slotGroup.visible = false;
   info('Corner calibration started', reason);
 }
 
@@ -1442,28 +1590,77 @@ function finishCalibration() {
     how: calib.hows,
   });
   if (r.skewDeg > 10 || r.mismatch > 0.15) {
-    warn('The 4 corners are far from a rectangle. Press the bumper to calibrate again if the outline looks wrong.');
+    warn('The 4 corners are far from a rectangle. Hold the bumper to calibrate again if the outline looks wrong.');
   }
-}
-
-// Bumper (top button) = undo the last corner, or calibrate again once done.
-// It can arrive as a 'squeeze' event and/or via polling the gamepad; one press = one action.
-function bumperAction(src, via) {
-  if (!acceptInput(src, 'grab')) return;
-  const now = performance.now();
-  if (now - calib.lastBumper < 400) return;
-  calib.lastBumper = now;
-  once('bumper-via-' + via, 'info', 'Bumper detected via ' + via);
-  if (calib.done) startCalibration('bumper: calibrate again');
-  else undoCorner();
-}
-
-function onSqueeze(e) {
-  if (state.mode !== 'corners') {
-    debugPanel.toggle();
+  if (state.build === 'cards') {
+    if (!state.features['camera-access']) {
+      warn('No camera feed: card scanning is off. Start again with the camera feed enabled.');
+    }
+    startColourCalibration('table calibrated');
     return;
   }
-  bumperAction(e?.inputSource, 'squeeze event');
+  // Manual and demo: no colour squares.
+  colourCal.done = true;
+  slotGroup.visible = false;
+  if (state.build === 'manual') enterManual();
+  else info('Demo scene on the table');
+}
+
+// Bumper (top button). During calibration: undo the last corner (on press).
+// In build mode: short press = undo, hold = calibrate again.
+// A press can arrive as squeeze events and/or via polling the gamepad (and on two
+// button indices); the down/up state below makes one press = one action.
+const bumper = { down: false, at: 0, fired: false, lastUp: 0 };
+
+function bumperDown(src, via) {
+  if (!acceptInput(src, 'grab')) return;
+  const now = performance.now();
+  if (bumper.down || now - bumper.lastUp < 250) return;
+  once('bumper-via-' + via, 'info', 'Bumper detected via ' + via);
+  bumper.down = true;
+  bumper.at = now;
+  bumper.fired = false;
+  if (!calib.done) {
+    bumper.fired = true;
+    undoCorner();
+  } else if (!colourCal.done) { // colour squares: back to the last corner
+    bumper.fired = true;
+    calib.done = false;
+    state.locked = false;
+    outline.visible = false;
+    slotGroup.visible = false;
+    colourCal.pending = null;
+    undoCorner();
+  }
+}
+
+function bumperUp() {
+  if (!bumper.down) return;
+  bumper.down = false;
+  bumper.lastUp = performance.now();
+  if (!bumper.fired) {
+    bumper.fired = true;
+    if (state.build === 'manual') manualBack();
+    else if (state.build === 'cards') undoBuild();
+    else say('Hold the bumper to calibrate again');
+  }
+}
+
+function checkBumperHold(now) {
+  if (bumper.down && !bumper.fired && calib.done && now - bumper.at > CONFIG.bumperHoldMs) {
+    bumper.fired = true;
+    startCalibration('bumper held: calibrate again');
+  }
+}
+
+function onSqueeze() {
+  if (state.mode !== 'corners') debugPanel.toggle();
+}
+function onSqueezeStart(e) {
+  if (state.mode === 'corners') bumperDown(e?.inputSource, 'squeeze event');
+}
+function onSqueezeEnd() {
+  if (state.mode === 'corners') bumperUp();
 }
 
 // The Magic Leap 2 browser doesn't fire 'squeeze' for the bumper, so we poll the gamepad.
@@ -1481,22 +1678,866 @@ function pollControllerButtons() {
       const down = buttons[i].pressed;
       if (down && !entry.prev[i]) {
         once('btn-' + i, 'info', `Controller button ${i} pressed (first time)`, { profiles: src.profiles });
-        if (BUMPER_BUTTONS.includes(i)) bumperAction(src, 'gamepad button ' + i);
+        if (BUMPER_BUTTONS.includes(i)) bumperDown(src, 'gamepad button ' + i);
+      } else if (!down && entry.prev[i] && BUMPER_BUTTONS.includes(i)) {
+        bumperUp();
       }
       entry.prev[i] = down;
     }
   }
 }
 
-function cornersStep(frame, refSpace) {
+// ---------------------------------------------------------------------------
+// Build mode: scan colour cards into assets, connect assets (corner setup, after calibration)
+// ---------------------------------------------------------------------------
+const build = {
+  system: null,          // EnergySystem, created once components.json is loaded
+  objects: new Map(),    // node id → THREE.Group under tableAnchor
+  links: null,           // LinkView
+  hovered: null,         // node id under the controller ray
+  selected: null,        // node id waiting for a second click
+  scan: null,            // { frames, startedAt, lastFrameAt, rejected } while scanning
+  message: '',           // short feedback on the HUD…
+  messageUntil: 0,       // …until this time (performance.now)
+  lastTime: 0,
+  lastTrigger: 0,
+};
+
+function say(text, level = 'info') {
+  build.message = text;
+  build.messageUntil = performance.now() + 3500;
+  log(level, text);
+}
+
+function ensureSystem() {
+  if (build.system || !components.config) return build.system;
+  build.system = new EnergySystem(components.config);
+  build.links = new LinkView(tableAnchor, components.config);
+  return build.system;
+}
+
+function headInTable() {
+  tableAnchor.updateMatrixWorld();
+  const p = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+  return tableAnchor.worldToLocal(p);
+}
+
+// Makes the 3D scene match build.system (adds and removes asset objects and links).
+function syncScene() {
+  const sys = build.system;
+  const ids = new Set(sys ? sys.nodes.map((n) => n.id) : []);
+  for (const [id, obj] of build.objects) {
+    if (ids.has(id)) continue;
+    tableAnchor.remove(obj);
+    disposeAssetObject(obj);
+    build.objects.delete(id);
+  }
+  if (sys) {
+    const head = headInTable();
+    for (const node of sys.nodes) {
+      if (build.objects.has(node.id)) continue;
+      const obj = makeAssetObject(node, components.config, components.templates);
+      faceTowards(obj, head);
+      tableAnchor.add(obj);
+      build.objects.set(node.id, obj);
+    }
+    build.links.sync(sys);
+  }
+  if (!ids.has(build.selected)) build.selected = null;
+  if (!ids.has(build.hovered)) build.hovered = null;
+}
+
+function resetBuild() {
+  build.system?.clear();
+  build.links?.clear();
+  syncScene();
+  build.scan = null;
+  build.tap = null;
+  build.selected = null;
+  build.hovered = null;
+  cornerEdges.set([]);
+  resetManual();
+}
+
+function undoBuild() {
+  if (build.selected !== null) {
+    build.selected = null;
+    say('Selection cleared');
+    return;
+  }
+  const what = build.system?.undo();
+  syncScene();
+  say(what ? 'Undo: ' + what : 'Nothing to undo');
+}
+
+function startScan() {
+  if (!components.config) {
+    say(components.error ? 'components.json failed to load, see the log' : 'Still loading components…', 'warn');
+    return;
+  }
+  if (!state.features['camera-access']) {
+    say('No camera feed: card scanning is off', 'warn');
+    return;
+  }
+  ensureSystem();
+  build.scan = {
+    frames: [], startedAt: performance.now(), lastFrameAt: 0, rejected: [],
+    lastQ: null, lastQAt: 0, skippedMoving: 0, camera: null,
+  };
+  info('Scanning for cards…');
+}
+
+function scanStep(frame, pose) {
+  const scan = build.scan;
+  const now = performance.now();
+  if (now - scan.startedAt > CONFIG.scanTimeoutMs) {
+    if (scan.frames.length) finishScan();
+    else {
+      build.scan = null;
+      say(scan.skippedMoving ? 'Scan failed: hold your head still while scanning' : 'Scan failed: no camera image', 'warn');
+    }
+    return;
+  }
+  const view = pose.views.find((v) => v.camera);
+  if (!view) return;
+  // Head turn speed, measured every frame.
+  const o = view.transform.orientation;
+  const q = new THREE.Quaternion(o.x, o.y, o.z, o.w);
+  const turning = scan.lastQ && (THREE.MathUtils.radToDeg(scan.lastQ.angleTo(q)) * 1000) /
+    Math.max(1, now - scan.lastQAt) > CONFIG.scanMaxTurnDegPerS;
+  scan.lastQ = q;
+  scan.lastQAt = now;
+  if (now - scan.lastFrameAt < CONFIG.scanFrameGapMs) return;
+  if (turning) {
+    scan.skippedMoving++;
+    build.message = 'Hold your head still…';
+    build.messageUntil = now + 800;
+    return;
+  }
+  const pixels = readCameraPixels(frame, view, 'cards');
+  if (!pixels) return;
+  scan.lastFrameAt = now;
+  if (!scan.camera) {
+    const p = view.transform.position;
+    scan.camera = [p.x, p.y, p.z].map(r3);
+  }
+  const t = state.table;
+  const table = { cx: t.pos.x, cz: t.pos.z, y: t.pos.y, yaw: t.yaw, length: t.length, width: t.width };
+  const det = detectCards(
+    pixels, CONFIG.scanWidth, CONFIG.scanHeight,
+    alignProjection(view.projectionMatrix, state.camAlign), view.transform.matrix,
+    table, components.colourTable, components.config.card, { maxDistance: CONFIG.maxDistance }
+  );
+  scan.frames.push(det.detections);
+  scan.rejected = det.rejected;
+  if (det.tableColour) scan.tableColour = det.tableColour;
+  if (cardDebugPanel.visible) {
+    const rgb = components.colourTable.colours.map((c) => {
+      const col = new THREE.Color(displayColour(components.config, c.name));
+      return [col.r * 255, col.g * 255, col.b * 255];
+    });
+    cardDebugPanel.updateCards(pixels, det, rgb);
+  }
+  if (scan.frames.length >= CONFIG.scanFrames) finishScan();
+}
+
+const r3 = (v) => +v.toFixed(3);
+// Measured (white-balanced) colour and its distance to the reference in components.json.
+// measured = median white-balanced colour (copy it to "seen" in components.json to tune),
+// lch = its lightness / chroma / hue, score = match (0 = perfect, accepted up to maxScore).
+const colourOf = (c) => ({ measured: rgbToHex(c.rgb), lch: describeColour(c.rgb), score: +c.dist.toFixed(2) });
+const cm = (v) => +(v * 100).toFixed(1);
+
+function finishScan() {
+  const scan = build.scan;
+  build.scan = null;
+  const sys = build.system;
+  const same = components.config.card?.sameCardDistance_m ?? 0.08;
+  const minFrames = Math.min(CONFIG.scanMinFrames, Math.ceil(scan.frames.length * 0.6));
+  const cards = mergeScans(scan.frames, { radius: Math.min(0.06, same), minFrames });
+  const fresh = filterNew(cards, sys.nodes, same);
+  info('Scan finished', {
+    frames: scan.frames.length, skippedWhileTurning: scan.skippedMoving, cards: cards.length, new: fresh.length,
+    tableColour: scan.tableColour ? rgbToHex(scan.tableColour) : 'not seen', camera: scan.camera,
+  });
+  for (const c of cards) {
+    info(`  card ${c.colour}${fresh.includes(c) ? ' (new)' : ''}`, {
+      x: r3(c.x), z: r3(c.z), size_cm: `${cm(c.sides[0])} x ${cm(c.sides[1])}`, ...colourOf(c),
+      frames: c.frames, votes: c.votes,
+    });
+  }
+  // Blobs that were not accepted as cards, biggest first: useful for tuning.
+  for (const d of [...scan.rejected].sort((a, b) => b.area - a.area).slice(0, 3)) {
+    info(`  not a card (${d.reason}): ${d.colour ?? '?'}`, {
+      x: r3(d.x), z: r3(d.z), size_cm: `${cm(d.sides[0])} x ${cm(d.sides[1])}`, fill: +d.fill.toFixed(2), ...colourOf(d),
+    });
+  }
+  const added = sys.addCards(fresh);
+  syncScene();
+  if (added.length) {
+    say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')}`);
+  } else if (cards.length) {
+    say(`No new cards (${cards.length} already placed)`);
+  } else {
+    say('No cards found' + (cardDebugPanel.visible ? '' : ' (use ?debug=1 to see what the camera sees)'), 'warn');
+  }
+}
+
+function clickAsset(id) {
+  const sys = build.system;
+  const node = sys.node(id);
+  if (build.selected === null) {
+    build.selected = id;
+    say(`${sys.labelOf(node)} selected: now click a second asset`);
+    return;
+  }
+  if (build.selected === id) {
+    build.selected = null;
+    say('Selection cleared');
+    return;
+  }
+  const first = sys.node(build.selected);
+  build.selected = null;
+  const r = sys.connect(first.id, id);
+  syncScene();
+  if (r.action === 'added') {
+    const parts = r.links.map((l) => `${l.carrier} ${sys.labelOf(sys.node(l.from))} → ${sys.labelOf(sys.node(l.to))}`);
+    say('Connected: ' + parts.join(', '));
+  } else if (r.action === 'removed') {
+    say(`Disconnected ${sys.labelOf(first)} and ${sys.labelOf(node)}`);
+  } else {
+    say('Not connected: ' + r.reason, 'warn');
+  }
+}
+
+function buildTrigger(src) {
+  if (!acceptInput(src, 'pinch')) return;
+  const now = performance.now();
+  if (now - build.lastTrigger < 300) return; // double press
+  build.lastTrigger = now;
+  if (src && calib.sources.has(src)) calib.active = src;
+  if (build.scan || build.tap) return; // busy
+  if (build.hovered !== null) clickAsset(build.hovered);
+  else startTap();
+}
+
+// Trigger on a card: its colour (patch where the ray hits, headset camera) is matched to
+// the nearest calibrated colour, and that colour's asset is placed where the ray hits.
+function startTap() {
+  if (!components.config) return say('Still loading components…', 'warn');
+  if (!state.features['camera-access']) return say('No camera feed: cannot read card colours', 'warn');
+  const s = pickActiveSource();
+  const aim = s ? calib.sources.get(s)?.aim : null;
+  if (!aim?.point) return say('Point the ray at a card on the table', 'warn');
+  ensureSystem();
+  build.tap = { point: aim.point.clone(), tries: 0 };
+}
+
+function tapStep(frame, pose) {
+  const tap = build.tap;
+  if (++tap.tries > 8) {
+    build.tap = null;
+    return say('No camera image, press the trigger again', 'warn');
+  }
+  const r = samplePoint(frame, pose, tap.point);
+  if (!r) return;
+  build.tap = null;
+  if (r.error) return say('That spot is ' + r.error, 'warn');
+  const local = tableAnchor.worldToLocal(tap.point.clone());
+  const t = state.table;
+  if (Math.abs(local.x) > t.length / 2 + 0.03 || Math.abs(local.z) > t.width / 2 + 0.03) {
+    return say('That is outside the table area', 'warn');
+  }
+  const table = components.colourTable;
+  const match = nearestColour(r.seen, table);
+  info(`Tap: ${match.name}`, {
+    x: r3(local.x), z: r3(local.z), raw: rgbToHex(r.raw), seen: rgbToHex(r.seen), lch: describeColour(r.seen),
+    distanceTo: match.all, tableWhite: rgbToHex(r.white),
+  });
+  const sys = build.system;
+  const near = sys.nodes.find((n) => Math.hypot(n.x - local.x, n.z - local.z) < (components.config.card?.sameCardDistance_m ?? 0.08));
+  if (near) return say(`There is already a ${sys.labelOf(near)} here`, 'warn');
+  const added = sys.addCards([{ colour: match.name, x: local.x, z: local.z }]);
+  syncScene();
+  say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')} (${match.name})`);
+}
+
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+
+function buildStep(time, frame, pose) {
+  checkBumperHold(performance.now());
+  const dt = build.lastTime ? Math.min(0.1, (time - build.lastTime) / 1000) : 0;
+  build.lastTime = time;
+  if (build.scan) scanStep(frame, pose);
+  if (build.tap) tapStep(frame, pose);
+
+  // What the controller points at: an asset, or a point on the table.
+  const src = pickActiveSource();
+  const aim = src ? calib.sources.get(src).aim : null;
+  const hoverObj = aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
+  build.hovered = hoverObj ? hoverObj.userData.nodeId : null;
+  let end = null;
+  if (hoverObj) end = hoverObj.localToWorld(_a.copy(hoverObj.userData.pickCentre));
+  else if (aim?.point) end = aim.point;
+  if (aim) {
+    laser.set(end ? (aim.how === 'controller tip' && !hoverObj ? [] : [aim.origin, end])
+      : [aim.origin, _b.copy(aim.origin).addScaledVector(aim.dir, 2)]);
+    aimCursor.visible = !hoverObj && !!aim.point;
+    if (aimCursor.visible) aimCursor.position.copy(aim.point);
+    cursorMat.color.setHex(0xffffff);
+  } else {
+    laser.set([]);
+    aimCursor.visible = false;
+  }
+  // Rubber band from the selected asset to where the controller points.
+  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
+  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
+  else cornerEdges.set([]);
+
+  highlightAssets(time);
+  build.links?.update(dt);
+
+  // HUD
+  const sys = build.system;
+  let line1;
+  if (performance.now() < build.messageUntil) line1 = build.message;
+  else if (build.scan || build.tap) line1 = 'Reading the card colour…';
+  else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
+  else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
+  else if (!sys?.nodes.length) line1 = 'Point at a card, press trigger to add it';
+  else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on a card = add`;
+  const camNote = state.features['camera-access'] ? '' : 'no camera: no scanning · ';
+  setHud(line1, camNote + 'trigger on asset = connect · bumper = undo · hold = recalibrate');
+}
+
+// Rings under the assets: hover = bright, selected = pulsing (cards and manual mode).
+function highlightAssets(time) {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
+  for (const [id, obj] of build.objects) {
+    const { ring, ringMat } = obj.userData;
+    const sel = id === build.selected, hov = id === build.hovered;
+    ringMat.opacity = sel ? 0.7 + 0.3 * pulse : hov ? 1 : 0.5;
+    ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
+  }
+}
+
+// Demo scene: the diorama is all there is; only recalibration.
+function demoStep() {
+  checkBumperHold(performance.now());
+  laser.set([]);
+  aimCursor.visible = false;
+  const t = state.table;
+  const line1 = performance.now() < build.messageUntil ? build.message
+    : `Demo scene  ·  ${t.length.toFixed(2)} × ${t.width.toFixed(2)} m`;
+  setHud(line1, (assetLabels ? 'trigger on an asset = name   ·   ' : '') + 'hold the bumper = calibrate again');
+}
+
+// ---------------------------------------------------------------------------
+// Manual mode (after the table corners): place assets from a palette, then connect them.
+//   place   — trigger on a palette tile picks an asset, trigger on the table places it
+//   connect — trigger on an asset, then on another, connects them (clickAsset, as cards)
+//   done    — finished; the flows keep running
+// "Done" on the palette moves on; the bumper steps back (manual.js: backAction).
+// Shares build.system / build.objects / build.links / syncScene with the cards mode.
+// ---------------------------------------------------------------------------
+const MANUAL_MIN_GAP = 0.06; // metres between asset centres
+const manual = {
+  phase: 'place',
+  palette: null,         // createPalette(), once components.json and the models are loaded
+  laidOut: false,        // palette placed along the table edge for this calibration
+  hoverTile: null,       // palette tile under the controller ray
+  lastTrigger: 0,
+};
+
+// The aim of the controller ray (or the mouse in ?preview=1): { origin, dir, point, how }.
+function currentAim() {
+  if (preview.active) return preview.aim;
+  const src = pickActiveSource();
+  return src ? calib.sources.get(src)?.aim ?? null : null;
+}
+
+function ensurePalette() {
+  if (manual.palette) return manual.palette;
+  if (!components.loaded || !components.config) return null;
+  manual.palette = createPalette(components.config, components.templates);
+  manual.palette.group.visible = false;
+  tableAnchor.add(manual.palette.group);
+  return manual.palette;
+}
+
+function layoutPalette() {
+  const pal = ensurePalette();
+  if (!pal || !state.table) return;
+  pal.layout(state.table.length, state.table.width, headInTable());
+  pal.setPhase(manual.phase);
+  manual.laidOut = true;
+  info('Palette placed along the table edge', { phase: manual.phase, selected: pal.selected });
+}
+
+function enterManual() {
+  manual.phase = 'place';
+  manual.laidOut = false;
+  build.selected = null;
+  ensureSystem();
+  if (ensurePalette()) layoutPalette(); // otherwise manualStep does it once loaded
+  info('Manual mode: place assets');
+}
+
+function resetManual() {
+  manual.phase = 'place';
+  manual.laidOut = false;
+  manual.hoverTile = null;
+  if (manual.palette) {
+    manual.palette.group.visible = false;
+    manual.palette.hideGhost();
+  }
+}
+
+function setManualPhase(phase, message) {
+  manual.phase = phase;
+  build.selected = null;
+  build.hovered = null;
+  manual.palette?.setPhase(phase);
+  manual.palette?.hideGhost();
+  cornerEdges.set([]);
+  say(message);
+}
+
+// Can an asset go at this table-local point? { ok, reason }
+function placeCheck(local) {
+  const t = state.table;
+  if (!insideTable(local.x, local.z, t.length, t.width)) return { ok: false, reason: 'Aim inside the table outline' };
+  const sys = build.system;
+  const near = sys?.nodes.find((n) => Math.hypot(n.x - local.x, n.z - local.z) < MANUAL_MIN_GAP);
+  if (near) return { ok: false, reason: `Too close to the ${sys.labelOf(near)}` };
+  return { ok: true };
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function manualTrigger(src) {
+  if (!acceptInput(src, 'pinch')) return;
+  const now = performance.now();
+  if (now - manual.lastTrigger < 300) return; // double press
+  manual.lastTrigger = now;
+  if (src && calib.sources.has(src)) calib.active = src;
+  const sys = ensureSystem();
+  const pal = ensurePalette();
+  if (!sys || !pal) {
+    say(components.error ? 'components.json failed to load, see the log' : 'Still loading the assets…', 'warn');
+    return;
+  }
+  const tile = manual.hoverTile?.userData;
+
+  if (manual.phase === 'place') {
+    if (tile?.kind === 'asset') {
+      pal.selected = tile.type;
+      say(`Placing: ${tile.label}. Trigger on the table to put it there`);
+      return;
+    }
+    if (tile?.kind === 'done') {
+      if (!sys.nodes.length) {
+        say('Place at least one asset first', 'warn');
+        return;
+      }
+      setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now trigger on an asset, then on another`);
+      return;
+    }
+    const aim = currentAim();
+    if (!aim?.point) {
+      say('Point the ray at the table', 'warn');
+      return;
+    }
+    tableAnchor.updateMatrixWorld();
+    const local = tableAnchor.worldToLocal(aim.point.clone());
+    const check = placeCheck(local);
+    if (!check.ok) {
+      say(check.reason, 'warn');
+      return;
+    }
+    const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
+    syncScene();
+    info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
+    say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+    return;
+  }
+
+  if (manual.phase === 'connect') {
+    if (tile?.kind === 'back') {
+      setManualPhase('place', 'Back to placing: pick an asset, trigger on the table');
+      return;
+    }
+    if (tile?.kind === 'done') {
+      setManualPhase('done', `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`);
+      return;
+    }
+    if (build.hovered !== null) clickAsset(build.hovered);
+    else if (build.selected !== null) {
+      build.selected = null;
+      say('Selection cleared');
+    }
+  }
+  // done: view only
+}
+
+// Short bumper press: undo, or one phase back.
+function manualBack() {
+  if (build.selected !== null) {
+    build.selected = null;
+    say('Selection cleared');
+    return;
+  }
+  const sys = build.system;
+  const action = backAction(manual.phase, sys?.lastStepKind() ?? null);
+  if (action === 'to-connect') setManualPhase('connect', 'Editing the connections again');
+  else if (action === 'to-place') setManualPhase('place', 'Back to placing assets');
+  else if (action === 'undo') {
+    const what = sys.undo();
+    syncScene();
+    say(what ? 'Undo: ' + what : 'Nothing to undo');
+  } else say('Nothing to undo');
+}
+
+const _c = new THREE.Vector3();
+
+function manualStep(time) {
+  checkBumperHold(performance.now());
+  const dt = build.lastTime ? Math.min(0.1, (time - build.lastTime) / 1000) : 0;
+  build.lastTime = time;
+  const sys = ensureSystem();
+  const pal = ensurePalette();
+  if (!sys || !pal) {
+    laser.set([]);
+    aimCursor.visible = false;
+    setHud(components.error ? 'The assets failed to load, see the log' : 'Loading the assets…', 'hold the bumper = calibrate again');
+    return;
+  }
+  if (!manual.laidOut) layoutPalette();
+  tableAnchor.updateMatrixWorld();
+  const head = headInTable();
+
+  // What the ray points at: a palette tile, a placed asset (connecting), or the table.
+  const aim = currentAim();
+  const tileObj = aim ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
+  const assetObj = !tileObj && aim && manual.phase === 'connect' && build.objects.size
+    ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
+  manual.hoverTile = tileObj;
+  build.hovered = assetObj ? assetObj.userData.nodeId : null;
+  const local = aim?.point && !tileObj && !assetObj ? tableAnchor.worldToLocal(_c.copy(aim.point)) : null;
+  const check = local && manual.phase === 'place' ? placeCheck(local) : null;
+
+  // Laser, cursor and ghost.
+  let end = null;
+  if (tileObj) end = tileObj.localToWorld(_a.copy(tileObj.userData.pickCentre));
+  else if (assetObj) end = assetObj.localToWorld(_a.copy(assetObj.userData.pickCentre));
+  else if (aim?.point) end = aim.point;
+  if (aim && aim.how !== 'mouse') {
+    laser.set(end ? (aim.how === 'controller tip' && !tileObj && !assetObj ? [] : [aim.origin, end])
+      : [aim.origin, _b.copy(aim.origin).addScaledVector(aim.dir, 2)]);
+  } else laser.set([]);
+  const outside = check && !insideTable(local.x, local.z, state.table.length, state.table.width);
+  aimCursor.visible = !!local && manual.phase !== 'done' && (manual.phase !== 'place' || outside);
+  if (aimCursor.visible) aimCursor.position.copy(aim.point);
+  cursorMat.color.setHex(outside ? 0xffa040 : 0xffffff);
+  if (check && !outside) pal.showGhost(local.x, local.z, head, check.ok);
+  else pal.hideGhost();
+
+  // Rubber band from the selected asset to where the ray points.
+  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
+  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
+  else cornerEdges.set([]);
+
+  highlightAssets(time);
+  pal.update(time, tileObj);
+  build.links?.update(dt);
+
+  // HUD: line 1 = what the trigger does now, line 2 = the rest.
+  const tile = tileObj?.userData;
+  const n = sys.nodes.length, m = sys.links.length;
+  const label = (type) => components.config.assets[type]?.label ?? type;
+  let line1, line2;
+  if (manual.phase === 'place') {
+    if (tile?.kind === 'asset') line1 = `${tile.label}: trigger to pick it`;
+    else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): trigger to start connecting` : 'Place at least one asset first';
+    else if (check && !check.ok) line1 = check.reason;
+    else line1 = `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
+    line2 = `${plural(n, 'asset')} · pick another asset on the palette · bumper = undo · hold = recalibrate`;
+  } else if (manual.phase === 'connect') {
+    if (tile?.kind === 'back') line1 = 'Back to placing assets';
+    else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): trigger to finish`;
+    else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
+    else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
+    else line1 = `Connect: trigger on an asset, then on another (${plural(m, 'connection')})`;
+    line2 = 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
+  } else {
+    line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}`;
+    line2 = 'bumper = edit the connections · hold = start over';
+  }
+  if (performance.now() < build.messageUntil) line1 = build.message;
+  setHud(line1, line2);
+}
+
+// ---------------------------------------------------------------------------
+// Colour calibration with slots (after the table corners): 4 squares of 10 x 10 cm are
+// drawn on the table, one per calibration colour. The user lays each card in its square
+// and presses the trigger once. Only the centre of each card is sampled, so a card that
+// lies a bit off doesn't matter. The colours as the camera sees them in this light become
+// the references. Because the app knows where the cards are, it also measures how far
+// the camera image is shifted against the head pose, and corrects later taps for it
+// (?align=0 turns the correction off).
+// ---------------------------------------------------------------------------
+const SLOT_SIZE = 0.10;
+const colourCal = {
+  order: [],            // colour names, from components.json calibrationColours
+  slots: [],            // [{ name, x, z }] table-local slot centres
+  frames: [],           // sampleSlots results, one per camera frame
+  pending: null,        // { tries, lastAt } while sampling
+  done: false,
+  lastTrigger: 0,
+};
+const slotGroup = new THREE.Group();
+slotGroup.visible = false;
+tableAnchor.add(slotGroup);
+
+function calibrationColours() {
+  const list = components.config?.calibrationColours;
+  return Array.isArray(list) && list.length ? list.filter((c) => components.config.colours[c]) : [];
+}
+
+// Slot centres: a row along the table edge nearest to the user, or a 2 x 2 grid in the
+// middle when the table is too short for a row.
+function slotLayout(names) {
+  const t = state.table;
+  const head = headInTable();
+  const gap = 0.05;
+  const rowLen = names.length * SLOT_SIZE + (names.length - 1) * gap;
+  if (t.length >= rowLen + 0.06 && t.width >= SLOT_SIZE + 0.1) {
+    const side = head.z >= 0 ? 1 : -1; // the long edge the user stands at
+    const z = side * (t.width / 2 - 0.04 - SLOT_SIZE / 2);
+    // Left to right as the user sees it.
+    return names.map((name, i) => ({ name, x: side * (-rowLen / 2 + SLOT_SIZE / 2 + i * (SLOT_SIZE + gap)), z }));
+  }
+  const cols = 2, step = SLOT_SIZE + gap;
+  return names.map((name, i) => ({
+    name,
+    x: ((i % cols) - (cols - 1) / 2) * step,
+    z: (Math.floor(i / cols) - (Math.ceil(names.length / cols) - 1) / 2) * step,
+  }));
+}
+
+function slotLabel(text, colour) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.font = '700 44px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = colour;
+  ctx.fillText(text, 128, 34);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sprite.scale.set(0.1, 0.025, 1);
+  return sprite;
+}
+
+function buildSlotVisuals() {
+  for (const c of [...slotGroup.children]) {
+    slotGroup.remove(c);
+    c.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
+  }
+  const half = SLOT_SIZE / 2;
+  for (const s of colourCal.slots) {
+    const colour = displayColour(components.config, s.name);
+    const g = new THREE.Group();
+    g.position.set(s.x, 0.002, s.z);
+    const pts = [[-half, -half], [half, -half], [half, half], [-half, half], [-half, -half]]
+      .map(([x, z]) => new THREE.Vector3(x, 0, z));
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: colour })));
+    // Centre mark: the part that is sampled.
+    g.add(new THREE.Mesh(
+      new THREE.RingGeometry(0.022, 0.026, 32).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.5 })
+    ));
+    const label = slotLabel(s.name.toUpperCase(), colour);
+    label.position.set(0, 0.03, 0);
+    g.add(label);
+    slotGroup.add(g);
+  }
+}
+
+function startColourCalibration(reason) {
+  colourCal.order = calibrationColours();
+  colourCal.frames = [];
+  colourCal.pending = null;
+  state.camAlign = null;
+  if (components.config) components.colourTable = buildColourTable(components.config);
+  colourCal.done = !colourCal.order.length || !state.features['camera-access'];
+  if (colourCal.done) {
+    slotGroup.visible = false;
+    info('Colour calibration skipped', !state.features['camera-access'] ? 'no camera feed' : 'no calibrationColours');
+    return;
+  }
+  colourCal.slots = slotLayout(colourCal.order);
+  buildSlotVisuals();
+  slotGroup.visible = true;
+  info('Colour calibration started', {
+    reason,
+    slots: colourCal.slots.map((s) => `${s.name} (${r3(s.x)}, ${r3(s.z)})`),
+  });
+}
+
+function colourTrigger(src) {
+  if (!acceptInput(src, 'pinch')) return;
+  const now = performance.now();
+  if (now - colourCal.lastTrigger < 350 || colourCal.pending) return;
+  colourCal.lastTrigger = now;
+  colourCal.frames = [];
+  colourCal.pending = { tries: 0, lastAt: 0 };
+}
+
+// Every frame while sampling: reads the camera (a few frames, 120 ms apart).
+function colourSampleStep(frame, pose) {
+  const p = colourCal.pending;
+  const now = performance.now();
+  if (now - p.lastAt < 120) return;
+  if (++p.tries > 20) {
+    colourCal.pending = null;
+    say('No camera image, press the trigger again', 'warn');
+    return;
+  }
+  const view = pose.views.find((v) => v.camera);
+  if (!view) return;
+  const pixels = readCameraPixels(frame, view, 'cards');
+  if (!pixels) return;
+  p.lastAt = now;
+  const W = CONFIG.scanWidth, H = CONFIG.scanHeight;
+  const P = view.projectionMatrix, M = view.transform.matrix;
+  tableAnchor.updateMatrixWorld();
+  const slots = [];
+  for (const s of colourCal.slots) {
+    const at = worldToPixel(P, M, W, H, tableAnchor.localToWorld(new THREE.Vector3(s.x, 0, s.z)));
+    if (!at || at.px < 0 || at.py < 0 || at.px >= W || at.py >= H) {
+      colourCal.pending = null;
+      say('Look at the table so all 4 squares are in view, then press the trigger', 'warn');
+      return;
+    }
+    slots.push({ px: at.px, py: at.py, pxPerM: ((P[0] * W) / 2 + (P[5] * H) / 2) / 2 / at.depth });
+  }
+  const r = sampleSlots(pixels, W, H, slots, { inner: CONFIG.slotInnerRadius, search: CONFIG.slotSearch });
+  if (cardDebugPanel.visible) cardDebugPanel.updateSlots(pixels, slots, r);
+  if (!r) return;
+  r.pxPerM = slots.reduce((s, sl) => s + sl.pxPerM, 0) / slots.length;
+  colourCal.frames.push(r);
+  if (colourCal.frames.length >= CONFIG.slotFrames) {
+    colourCal.pending = null;
+    finishColourCalibration();
+  }
+}
+
+function finishColourCalibration() {
+  const frames = colourCal.frames;
+  const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+  const shiftPx = { x: med(frames.map((f) => f.shift.x)), y: med(frames.map((f) => f.shift.y)) };
+  const ppm = med(frames.map((f) => f.pxPerM));
+  const table0 = buildColourTable(components.config);
+  const seen = {};
+  const report = {};
+  const weak = [];
+  colourCal.order.forEach((name, i) => {
+    const got = frames.map((f) => f.samples[i] && { rgb: f.samples[i].rgb, white: f.white, contrast: f.samples[i].contrast }).filter(Boolean);
+    if (!got.length) return;
+    const raw = [0, 1, 2].map((c) => med(got.map((g) => g.rgb[c])));
+    const white = [0, 1, 2].map((c) => med(got.map((g) => g.white[c])));
+    const contrast = med(got.map((g) => g.contrast));
+    seen[name] = balanceColour(raw, white, table0);
+    report[name] = { raw: rgbToHex(raw), seen: rgbToHex(seen[name]), lch: describeColour(seen[name]), contrast };
+    if (contrast < 15) weak.push(name);
+  });
+  if (Object.keys(seen).length < colourCal.order.length) {
+    say('Could not read every square: press the trigger again', 'warn');
+    return;
+  }
+  components.colourTable = buildColourTable(components.config, { only: colourCal.order, seen });
+  const W = CONFIG.scanWidth, H = CONFIG.scanHeight;
+  const ndc = pixelShiftToNdc(shiftPx.x, shiftPx.y, W, H);
+  state.camAlign = params.get('align') === '0' ? null : { shiftX: ndc.x, shiftY: ndc.y };
+  info('Colours calibrated', {
+    colours: report,
+    cameraShift_cm: [+(shiftPx.x / ppm * 100).toFixed(1), +(shiftPx.y / ppm * 100).toFixed(1)],
+    cameraShift_px: [shiftPx.x, shiftPx.y],
+    score: { best: +med(frames.map((f) => f.score)).toFixed(1), noShift: +med(frames.map((f) => f.scoreNoShift)).toFixed(1) },
+    correctionApplied: Boolean(state.camAlign),
+  });
+  if (weak.length) {
+    warn('These squares look like the table: is the card there?', weak);
+    say(`No card seen in: ${weak.join(', ')}. Check the squares, press the trigger again`, 'warn');
+    return;
+  }
+  const t = components.colourTable;
+  const close = [];
+  for (let i = 0; i < t.colours.length; i++) {
+    for (let j = i + 1; j < t.colours.length; j++) {
+      const a = t.colours[i].lab, b = t.colours[j].lab;
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      if (d < 15) close.push(`${t.colours[i].name}/${t.colours[j].name} (${d.toFixed(0)})`);
+    }
+  }
+  if (close.length) warn('These calibrated colours look very alike to the camera', close);
+  colourCal.done = true;
+  slotGroup.visible = false;
+  say('Colours calibrated: point at a card, press trigger to add it');
+}
+
+// Colour right where the ray hits (headset camera, corrected for the measured camera
+// shift), white-balanced against the table around it. Returns { seen, raw, white, at }
+// or { error }, or null while the camera image isn't there yet (try again next frame).
+function samplePoint(frame, pose, point) {
+  const view = pose.views.find((v) => v.camera);
+  if (!view) return null;
+  const pixels = readCameraPixels(frame, view, 'cards');
+  if (!pixels) return null;
+  const W = CONFIG.scanWidth, H = CONFIG.scanHeight;
+  const P = alignProjection(view.projectionMatrix, state.camAlign), M = view.transform.matrix;
+  const at = worldToPixel(P, M, W, H, point);
+  if (!at || at.px < 0 || at.py < 0 || at.px >= W || at.py >= H) return { error: 'not in the camera view: look at it' };
+  const pxPerM = (P[0] * W) / 2 / at.depth;
+  const s = samplePatch(pixels, W, H, at.px, at.py, CONFIG.patchRadius * pxPerM, CONFIG.whiteRadius * pxPerM);
+  if (cardDebugPanel.visible) cardDebugPanel.updateSample(pixels, at, null);
+  if (!s) return { error: 'could not read the camera there' };
+  return { seen: balanceColour(s.rgb, s.white, components.colourTable), raw: s.rgb, white: s.white, at, pixels: s.count };
+}
+
+function coloursStep(frame, pose) {
+  if (!colourCal.order.length) {
+    setHud('Loading the card colours…', components.error ? 'components.json failed, see the log' : '');
+    return;
+  }
+  if (colourCal.pending) colourSampleStep(frame, pose);
+  if (colourCal.done) return;
+  laser.set([]);
+  aimCursor.visible = false;
+  cornerEdges.set([]);
+  let line1 = `Lay the cards in their squares: ${colourCal.order.join(', ')}. Then press trigger`;
+  if (performance.now() < build.messageUntil) line1 = build.message;
+  setHud(line1, colourCal.pending ? 'reading the camera… hold still'
+    : `look at all 4 squares · bumper = back to the corners · ${APP_VERSION}`);
+}
+
+function cornersStep(time, frame, pose, refSpace) {
   pollControllerButtons();
   for (const [src, entry] of calib.sources) entry.aim = aimPoint(frame, refSpace, src, entry);
+  if (calib.done && !colourCal.done) {
+    if (!colourCal.order.length && components.config) startColourCalibration('components loaded');
+    coloursStep(frame, pose);
+    return;
+  }
   if (calib.done) {
-    const t = state.table;
-    setHud(
-      `Table calibrated  ·  ${t.length.toFixed(2)} × ${t.width.toFixed(2)} m`,
-      (assetLabels ? 'trigger on an asset = name   ·   ' : '') + 'bumper = calibrate again'
-    );
+    if (state.build === 'manual') manualStep(time);
+    else if (state.build === 'cards') buildStep(time, frame, pose);
+    else demoStep();
     return;
   }
 
@@ -1539,8 +2580,10 @@ labelRaycaster.far = CONFIG.maxDistance;
 const labelPointer = makeDynamicLine(2, 0xffffff, scene);
 labelPointer.line.material.transparent = true;
 
+// Only with the diorama (demo scene, camera detection): in manual and cards mode it is
+// hidden, and the raycaster would still hit its invisible models and steal the trigger.
 function labelsShown() {
-  return assetLabels !== null && tableAnchor.visible && assetLabels.group.visible;
+  return assetLabels !== null && tableAnchor.visible && diorama.visible && assetLabels.group.visible;
 }
 
 // Where an input source points, in the reference space: { origin, dir } or null.
@@ -1593,16 +2636,23 @@ function toggleLabelAt(e) {
 // ---------------------------------------------------------------------------
 // Per-frame logic
 // ---------------------------------------------------------------------------
-function readCameraPixels(frame, view) {
+// kind: 'table' (160×120, table detection) or 'cards' (320×240, card scans).
+function readCameraPixels(frame, view, kind = 'table') {
   const xrTarget = renderer.getRenderTarget();
   let pixels = null;
   try {
     if (!state.glBinding) {
       info('Creating camera binding (XRWebGLBinding)…');
       state.glBinding = new XRWebGLBinding(frame.session, gl);
+    }
+    if (kind === 'cards' && !state.cardReader) {
+      state.cardReader = new CameraReader(gl, CONFIG.scanWidth, CONFIG.scanHeight);
+      info('Card-scan camera reader ready', `${CONFIG.scanWidth}x${CONFIG.scanHeight}`);
+    } else if (kind === 'table' && !state.reader) {
       state.reader = new CameraReader(gl, W, H);
       info('Camera reader ready');
     }
+    const reader = kind === 'cards' ? state.cardReader : state.reader;
     once('cam-call', 'info', 'Calling getCameraImage for the first time…');
     const texture = state.glBinding.getCameraImage(view.camera);
     if (!texture) {
@@ -1610,14 +2660,21 @@ function readCameraPixels(frame, view) {
       return null;
     }
     once('cam-readpx', 'info', 'Reading camera pixels for the first time…');
-    pixels = state.reader.read(texture);
+    pixels = reader.read(texture);
     const glErr = gl.getError();
     if (glErr) once('gl-err-' + glErr, 'warn', 'WebGL error after camera read', '0x' + glErr.toString(16));
     once('cam-read-ok', 'info', 'First camera frame read', { meanBrightness: meanLuma(pixels) });
   } catch (err) {
     state.cameraErrors++;
     once('cam-err-' + (err && err.message), 'error', 'Camera read failed', errText(err));
-    if (state.cameraErrors >= 3) switchToGaze('camera read keeps failing');
+    if (state.cameraErrors >= 3) {
+      if (state.mode === 'corners') {
+        warn('Camera read keeps failing: card scanning is turned off');
+        state.features['camera-access'] = false;
+      } else {
+        switchToGaze('camera read keeps failing');
+      }
+    }
     pixels = null;
   } finally {
     renderer.resetState();          // three.js forgets its cached GL state…
@@ -1790,7 +2847,7 @@ function gazeStep(frame, refSpace) {
     }
   }
   const line1 = state.locked
-    ? 'Cube placed · trigger to move it'
+    ? 'Placed · trigger to move it'
     : reticle.visible ? 'Look at the table, press trigger' : 'Look at the table…';
   setHud(line1, 'gaze mode (no camera feed)   ·   ' + featureLine());
 }
@@ -1798,7 +2855,11 @@ function gazeStep(frame, refSpace) {
 function onSelect(e) {
   if (toggleLabelAt(e)) return; // pointing at an asset name: that wins over everything else
   if (state.mode === 'corners') {
-    placeCorner(e?.inputSource);
+    if (!calib.done) placeCorner(e?.inputSource);
+    else if (!colourCal.done) colourTrigger(e?.inputSource);
+    else if (state.build === 'manual') manualTrigger(e?.inputSource);
+    else if (state.build === 'cards') buildTrigger(e?.inputSource);
+    // demo: nothing to click
     return;
   }
   if (state.mode === 'camera') {
@@ -1823,7 +2884,7 @@ function onSelect(e) {
   outline.visible = false;
   tableAnchor.visible = true;
   state.locked = true;
-  info('Cube placed (gaze mode)', { onSurface: reticle.visible });
+  info('Content placed (gaze mode)', { onSurface: reticle.visible });
 }
 
 function onXRFrame(time, frame) {
@@ -1858,7 +2919,7 @@ function onXRFrame(time, frame) {
     setHud('Tracking lost — look around slowly', featureLine());
     return;
   }
-  if (state.mode === 'corners') cornersStep(frame, refSpace);
+  if (state.mode === 'corners') cornersStep(time, frame, pose, refSpace);
   else if (state.mode === 'camera') cameraStep(time, frame, pose, refSpace);
   else gazeStep(frame, refSpace);
   labelsStep(frame, refSpace);
@@ -1980,13 +3041,15 @@ async function startAR(requested) {
   rawBtn.disabled = true;
   onceKeys.clear();
   const setup = chosenSetup();
-  if (setup === 'corners' && requested.includes('camera-access')) {
-    // Corner calibration doesn't use the camera, so don't ask for the permission.
-    requested = requested.filter((f) => f !== 'camera-access');
-    info('Corner calibration: not requesting camera-access');
-  }
+  state.build = chosenBuild();
+  // Corner setup only needs the camera for the colour cards. Not asking for it otherwise
+  // means one permission less, and the camera binding was the riskiest part on the ML2.
+  if (setup === 'corners' && state.build !== 'cards') requested = requested.filter((f) => f !== 'camera-access');
+  debugPanel.visible = CONFIG.debug && setup !== 'corners';
+  cardDebugPanel.visible = CONFIG.debug && setup === 'corners' && state.build === 'cards';
+  diorama.visible = state.build === 'demo';
   setPageStatus('Starting AR…');
-  info('Requesting immersive-ar session', { optionalFeatures: requested });
+  info('Requesting immersive-ar session', { setup, build: state.build, optionalFeatures: requested });
 
   let session;
   try {
@@ -2055,12 +3118,15 @@ async function startAR(requested) {
   Object.assign(state, {
     frameCount: 0, cameraWaitStart: 0, cameraErrors: 0, frameErrors: 0,
     lastHeartbeat: 0, fpsFrames: 0, lastRayRequest: 0,
-    glBinding: null, reader: null, rayHitSource: null, viewerHitSource: null,
+    glBinding: null, reader: null, cardReader: null, rayHitSource: null, viewerHitSource: null,
   });
   for (const s of session.inputSources) trackInputSource(s);
   if (setup === 'corners') {
     state.mode = 'corners';
+    info('Session uses version ' + APP_VERSION);
     startCalibration('session start');
+    colourCal.done = false; // colour squares come after the corners
+    colourCal.order = [];
   } else {
     state.mode = 'camera';
     outline.visible = true;
@@ -2070,6 +3136,8 @@ async function startAR(requested) {
 
   session.addEventListener('select', onSelect);
   session.addEventListener('squeeze', onSqueeze);
+  session.addEventListener('squeezestart', onSqueezeStart);
+  session.addEventListener('squeezeend', onSqueezeEnd);
 
   renderer.setAnimationLoop((time, frame) => {
     if (frame) {
@@ -2119,7 +3187,7 @@ function onSessionEnd() {
     ['Floor reference (local-floor)', state.features['local-floor']],
   ]);
   Object.assign(state, {
-    session: null, glBinding: null, reader: null,
+    session: null, glBinding: null, reader: null, cardReader: null,
     rayHitSource: null, viewerHitSource: null, rayHitPending: false,
   });
   for (const s of [...calib.sources.keys()]) untrackInputSource(s);
@@ -2127,6 +3195,8 @@ function onSessionEnd() {
   labelPointer.set([]);
   assetLabels?.setHover(null);
   resetTracking();
+  resetBuild();
+  Object.assign(bumper, { down: false, fired: false });
   reticle.visible = false;
   startBtn.disabled = false;
   safeBtn.disabled = false;
@@ -2147,13 +3217,32 @@ window.addEventListener('resize', () => {
 
 // ?preview=1 — look at the diorama on a normal screen (no headset, no WebXR), on a
 // virtual 1.6 x 0.8 m table. Handy for checking models and layout from the laptop.
+// ?preview=1&build=manual — try manual mode there: the mouse is the controller ray,
+// click = trigger, Backspace = bumper (short press). The camera stays still.
+const preview = { active: false, aim: null, ndc: null };
+const _ray = new THREE.Raycaster();
+
+function previewAim() {
+  if (!preview.ndc) return null;
+  _ray.setFromCamera(preview.ndc, camera);
+  const { origin, direction } = _ray.ray;
+  const t = direction.y < -1e-3 ? (tableAnchor.position.y - origin.y) / direction.y : -1;
+  const point = t > 0 ? origin.clone().addScaledVector(direction, t) : null;
+  return { origin: origin.clone(), dir: direction.clone(), point, how: 'mouse' };
+}
+
 function startPreview() {
-  info('Preview mode: diorama on a virtual 1.6 x 0.8 m table');
+  const manualPreview = params.get('build') === 'manual';
+  state.build = manualPreview ? 'manual' : 'demo';
+  info(manualPreview
+    ? 'Preview mode: manual mode on a virtual 1.6 x 0.8 m table (mouse = controller, click = trigger, Backspace = bumper)'
+    : 'Preview mode: diorama on a virtual 1.6 x 0.8 m table');
   document.body.classList.add('preview');
   Object.assign(renderer.domElement.style, { display: 'block', position: 'fixed', inset: '0', zIndex: '0' });
   renderer.setClearColor(0x20252c, 1);
   tableAnchor.visible = true;
   outline.visible = true;
+  diorama.visible = !manualPreview;
   updateOutline(1.6, 0.8, 0);
   const table = new THREE.Mesh(
     new THREE.BoxGeometry(1.6, 0.04, 0.8),
@@ -2161,13 +3250,52 @@ function startPreview() {
   );
   table.position.y = -0.02;
   tableAnchor.add(table);
-  const angle = params.has('angle') ? parseFloat(params.get('angle')) : null; // fixed view, degrees
-  const dist = parseFloat(params.get('dist') ?? '0.9');                       // camera distance, m
-  const height = parseFloat(params.get('height') ?? '0.55');
-
-  // Mouse: click an asset name to show or hide its details, click elsewhere to close.
-  // Hovering a name pauses the turntable so it is easy to click.
+  const angle = params.has('angle') ? parseFloat(params.get('angle')) : manualPreview ? 0 : null; // fixed view, degrees
+  const dist = parseFloat(params.get('dist') ?? (manualPreview ? '1.0' : '0.9'));                 // camera distance, m
+  const height = parseFloat(params.get('height') ?? (manualPreview ? '0.85' : '0.55'));
+  let turn = 0, lastTime = 0;
+  const placeCamera = (time, pause = false) => {
+    if (!pause) turn += (time - (lastTime || time)) * 0.0002;
+    lastTime = time;
+    const a = angle !== null ? THREE.MathUtils.degToRad(angle) : turn;
+    camera.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
+    camera.lookAt(0, manualPreview ? 0 : 0.05, 0);
+    camera.updateMatrixWorld();
+  };
   const canvas = renderer.domElement;
+
+  if (manualPreview) {
+    // As if the 4 corners were just placed around the virtual table.
+    placeCamera(0);
+    state.table = { pos: tableAnchor.position.clone(), yaw: 0, length: 1.6, width: 0.8, radius: 0 };
+    state.locked = true;
+    calib.done = true;
+    colourCal.done = true;
+    calibGroup.visible = true;
+    preview.active = true;
+    canvas.addEventListener('pointermove', (e) => {
+      preview.ndc = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    });
+    canvas.addEventListener('pointerleave', () => { preview.ndc = null; });
+    canvas.addEventListener('click', () => manualTrigger(null));
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Backspace' || e.target !== document.body) return;
+      e.preventDefault();
+      manualBack();
+    });
+    enterManual();
+    renderer.setAnimationLoop((time) => {
+      placeCamera(time);
+      preview.aim = previewAim();
+      try { manualStep(time); } catch (err) { once('preview-err', 'error', 'Manual preview failed', errText(err)); }
+      animateDiorama(time);
+      renderer.render(scene, camera);
+    });
+    return;
+  }
+
+  // Diorama: click an asset to show or hide its name, click a name to show or hide its
+  // details, click elsewhere to hide them all. Hovering a name pauses the turntable.
   const mouse = { ndc: new THREE.Vector2(), inside: false };
   const pickAt = (e) => {
     mouse.ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
@@ -2181,8 +3309,6 @@ function startPreview() {
     if (hit) assetLabels.activate(hit);
     else assetLabels?.hideAll();
   });
-
-  let turn = 0, lastTime = 0;
   renderer.setAnimationLoop((time) => {
     let hit = null;
     if (assetLabels && mouse.inside) {
@@ -2191,11 +3317,7 @@ function startPreview() {
     }
     assetLabels?.setHover(hit);
     canvas.style.cursor = hit ? 'pointer' : '';
-    if (!hit) turn += (time - (lastTime || time)) * 0.0002;
-    lastTime = time;
-    const a = angle !== null ? THREE.MathUtils.degToRad(angle) : turn;
-    camera.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
-    camera.lookAt(0, 0.05, 0);
+    placeCamera(time, !!hit);
     animateDiorama(time);
     renderer.render(scene, camera);
   });

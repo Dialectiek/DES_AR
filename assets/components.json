@@ -1,0 +1,179 @@
+{
+  "cards": {
+    "red": "house-pv",
+    "dark-blue": null,
+    "light-cyan": null,
+    "yellow": null,
+    "orange": null,
+    "purple": null,
+    "dark-green": null,
+    "blue": null,
+    "black": "office-pv",
+    "lime": null,
+    "gray": null,
+    "brown": null
+  },
+  "assets": {
+    "house-pv": {
+      "label": "House with PV",
+      "model": "assets/models/house-pv.glb",
+      "size_m": 0.16,
+      "produces": [
+        "electricity"
+      ],
+      "consumes": [
+        "electricity"
+      ],
+      "power_kW": 5.6
+    },
+    "office-pv": {
+      "label": "Office with PV",
+      "model": "assets/models/office-pv.glb",
+      "size_m": 0.24,
+      "produces": [
+        "electricity"
+      ],
+      "consumes": [
+        "electricity"
+      ],
+      "power_kW": 22.4
+    },
+    "wind-turbine": {
+      "label": "Wind turbine",
+      "model": "assets/figures/wind-turbine.glb",
+      "size_m": 0.12,
+      "produces": [
+        "electricity"
+      ],
+      "consumes": [],
+      "power_kW": 5
+    },
+    "solar-battery": {
+      "label": "Solar battery",
+      "model": "assets/figures/solar-battery.glb",
+      "size_m": 0.1,
+      "produces": [
+        "electricity"
+      ],
+      "consumes": [
+        "electricity"
+      ],
+      "power_kW": 3
+    },
+    "power-box": {
+      "label": "Power box",
+      "model": "assets/figures/power-box.glb",
+      "size_m": 0.1,
+      "produces": [
+        "electricity",
+        "heat"
+      ],
+      "consumes": [],
+      "power_kW": 10
+    },
+    "greenhouse": {
+      "label": "Greenhouse",
+      "model": "assets/figures/greenhouse.glb",
+      "size_m": 0.14,
+      "produces": [],
+      "consumes": [
+        "heat",
+        "electricity"
+      ],
+      "power_kW": 4
+    },
+    "car": {
+      "label": "Car",
+      "model": "assets/figures/car.glb",
+      "size_m": 0.12,
+      "produces": [],
+      "consumes": [
+        "electricity"
+      ],
+      "power_kW": 7
+    },
+    "banana-car": {
+      "label": "Banana car",
+      "model": "assets/figures/banana-car.glb",
+      "size_m": 0.12,
+      "produces": [],
+      "consumes": [
+        "electricity"
+      ],
+      "power_kW": 2
+    }
+  },
+  "carriers": {
+    "electricity": {
+      "color": "#ffe14d"
+    },
+    "heat": {
+      "color": "#ff7a2e"
+    }
+  },
+  "tableWhite": "#f0f0f0",
+  "colours": {
+    "red": {
+      "rgb": "#ff3131",
+      "seen": "#4b0801"
+    },
+    "dark-blue": {
+      "rgb": "#004aad",
+      "display": "#3d7dff"
+    },
+    "light-cyan": {
+      "rgb": "#5ce1e6"
+    },
+    "yellow": {
+      "rgb": "#ffde59"
+    },
+    "orange": {
+      "rgb": "#ff914d"
+    },
+    "purple": {
+      "rgb": "#8c52ff"
+    },
+    "dark-green": {
+      "rgb": "#00bf63"
+    },
+    "blue": {
+      "rgb": "#36aaef"
+    },
+    "black": {
+      "rgb": "#000000",
+      "display": "#d8d8d8",
+      "seen": "#121111"
+    },
+    "lime": {
+      "rgb": "#b7ff41"
+    },
+    "gray": {
+      "rgb": "#a2a3a5",
+      "display": "#c8c8cc"
+    },
+    "brown": {
+      "rgb": "#70310d",
+      "display": "#c87a45"
+    }
+  },
+  "calibrationColours": ["red", "black", "blue", "yellow"],
+  "about_calibration": "At the start of a session the user points at one card of each calibrationColours colour; their camera colours (in that light) become the references, and only those colours are detected.",
+  "about_matching": "Card colours are matched by hue first (stable under room light), then lightness and chroma. rgb = the printed colour; seen = how the card looks to the headset camera after white balance on the table (copy the \"measured\" value from the scan log). seen is used when present.",
+  "matching": {
+    "hueTolerance_deg": 16,
+    "lightnessTolerance": 45,
+    "chromaTolerance": 80,
+    "greyLightnessTolerance": 15,
+    "colourlessChroma": 10,
+    "tableShade": 10,
+    "maxScore": 1.2
+  },
+  "card": {
+    "minSide_m": 0.04,
+    "maxSide_m": 0.22,
+    "tableMargin_m": 0.02,
+    "sameCardDistance_m": 0.08,
+    "maxAspect": 1.7,
+    "minFill": 0.65
+  }
+}

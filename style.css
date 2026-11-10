@@ -171,3 +171,8 @@ code { font-size: 0.9em; }
 .log-panel.collapsed #log-list { display: none; }
 /* ?preview=1: diorama on the laptop screen, start card hidden. */
 body.preview .panel { display: none; }
+
+/* Build picker: the choice that matters most, so it stands out a little. */
+#build-picker { border-color: var(--accent); }
+#build-picker:disabled label { color: var(--muted); cursor: default; }
+.note { margin: 6px 0 0; font-size: 0.9rem; color: var(--muted); }
