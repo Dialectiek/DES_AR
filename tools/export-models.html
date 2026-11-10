@@ -24,8 +24,11 @@
 
     const out = document.getElementById('out');
     const say = (t) => { out.textContent += t + '\n'; };
+    // ?only=house,battery exports just those (the others stay byte-identical on disk).
+    const only = new URLSearchParams(location.search).get('only')?.split(',').filter(Boolean);
+    const chosen = Object.entries(BUILDERS).filter(([id]) => !only || only.includes(id));
     let ok = 0;
-    for (const [id, build] of Object.entries(BUILDERS)) {
+    for (const [id, build] of chosen) {
       try {
         const obj = build();
         obj.name = id;
@@ -37,7 +40,7 @@
         say(`${id}: ERROR ${err.message}`);
       }
     }
-    say(`Done: ${ok} of ${Object.keys(BUILDERS).length} saved.`);
+    say(`Done: ${ok} of ${chosen.length} saved.`);
     document.title = 'done';
   </script>
 </body>

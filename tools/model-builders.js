@@ -203,8 +203,155 @@ export function buildOfficePV() {
   return office;
 }
 
+// ---------------------------------------------------------------------------
+// House without PV: the same house, panels left off. A household load in scenarios.
+// ---------------------------------------------------------------------------
+export function buildHouse() {
+  const house = buildHousePV();
+  house.name = 'house';
+  house.getObjectByName('pv_array')?.removeFromParent();
+  house.userData = {};
+  return house;
+}
+
+// A beam (thin box) from a to b, both THREE.Vector3.
+function beam(a, b, t, material, name = 'beam') {
+  const dir = b.clone().sub(a);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(t, dir.length(), t), material);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  m.name = name;
+  return m;
+}
+
+// Flat lightning bolt in the XY plane, about 1 x 1.6 m, facing +Z.
+function boltMesh(material, scale = 1) {
+  const s = new THREE.Shape();
+  const pts = [[0.15, 0.8], [-0.45, -0.05], [-0.05, -0.05], [-0.2, -0.8], [0.45, 0.1], [0.05, 0.1], [0.15, 0.8]];
+  s.moveTo(pts[0][0] * scale, pts[0][1] * scale);
+  for (const [x, y] of pts.slice(1)) s.lineTo(x * scale, y * scale);
+  const m = new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: false }), material);
+  m.name = 'bolt';
+  return m;
+}
+
+// ---------------------------------------------------------------------------
+// Neighbourhood battery: a 2.4 x 1.2 m cabinet, 2 m high, with module doors on the front.
+// The app hangs its state-of-charge bar on the empty node "level_anchor" (front, bottom of
+// the bar); the bar is 70% of the cabinet height.
+// ---------------------------------------------------------------------------
+export function buildBattery() {
+  const L = 2.4, H = 2.0, W = 1.2;
+  const g = new THREE.Group();
+  g.name = 'battery';
+  const body = stdMat(0xf2f5f7);
+  body.name = 'cabinet';
+  g.add(boxAt(L, H, W, body, 0, H / 2 + 0.15, 0, 'cabinet'));
+  g.add(boxAt(L + 0.2, 0.15, W + 0.2, stdMat(0xc9d1d9), 0, 0.075, 0, 'plinth'));
+  g.add(boxAt(L + 0.1, 0.12, W + 0.1, stdMat(0x7cff6b), 0, H + 0.21, 0, 'lid'));
+  const door = stdMat(0xdfe6ee);
+  door.name = 'door';
+  for (const x of [-0.8, 0.8]) g.add(boxAt(0.7, H - 0.3, 0.05, door, x, H / 2 + 0.15, W / 2 + 0.025, 'module_door'));
+  // Terminals on the lid: + (red) and − (dark grey reads as see-through, so white).
+  g.add(boxAt(0.18, 0.2, 0.18, stdMat(0xff6b6b), -0.7, H + 0.37, 0, 'terminal_plus'));
+  g.add(boxAt(0.18, 0.2, 0.18, stdMat(0xffffff), 0.7, H + 0.37, 0, 'terminal_minus'));
+  const anchor = new THREE.Object3D();
+  anchor.name = 'level_anchor';
+  anchor.position.set(0, 0.45, W / 2 + 0.08);
+  g.add(anchor);
+  g.add(port('main', 0, H + 0.3, 0));
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Transformer / neighbourhood controller: the hub where the flows meet. A 3 x 2 m tank,
+// three bushings on top, red bands and a lightning bolt on the front.
+// ---------------------------------------------------------------------------
+export function buildTransformer() {
+  const L = 3.0, H = 2.2, W = 2.0;
+  const g = new THREE.Group();
+  g.name = 'transformer';
+  g.add(boxAt(L, H, W, stdMat(0xb8f0c8), 0, H / 2 + 0.2, 0, 'tank'));
+  g.add(boxAt(L + 0.3, 0.2, W + 0.3, stdMat(0xc9d1d9), 0, 0.1, 0, 'plinth'));
+  const red = stdMat(0xff6b6b);
+  red.name = 'band';
+  for (const y of [0.45, H + 0.05]) g.add(boxAt(L + 0.06, 0.18, W + 0.06, red, 0, y, 0, 'band'));
+  // Cooling fins on both sides.
+  const fin = stdMat(0x9fe0b4);
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 5; i++) g.add(boxAt(0.25, H - 0.6, 0.06, fin, sx * (L / 2 + 0.12), H / 2 + 0.2, -0.6 + i * 0.3, 'fin'));
+  }
+  // Bushings: stacked discs on a white post.
+  const white = stdMat(0xffffff);
+  white.name = 'bushing';
+  for (const x of [-0.9, 0, 0.9]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.9, 10), white);
+    post.position.set(x, H + 0.2 + 0.45, 0);
+    post.name = 'bushing';
+    g.add(post);
+    for (let k = 0; k < 4; k++) {
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 12), white);
+      disc.position.set(x, H + 0.35 + k * 0.2, 0);
+      disc.name = 'bushing_disc';
+      g.add(disc);
+    }
+  }
+  const bolt = boltMesh(stdMat(0xffd60a, { emissive: 0x806a00, emissiveIntensity: 0.5 }), 0.9);
+  bolt.position.set(0, H / 2 + 0.2, W / 2 + 0.01);
+  g.add(bolt);
+  g.add(port('main', 0, H + 1.1, 0));
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// High-voltage lattice pylon, 18 m high: the public grid. Light grey on purpose (dark steel
+// would be see-through on the additive display).
+// ---------------------------------------------------------------------------
+export function buildGridPylon() {
+  const g = new THREE.Group();
+  g.name = 'grid-pylon';
+  const steel = stdMat(0xd0d6dc);
+  steel.name = 'steel';
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const top = 16, base = 2.4, head = 0.6;
+  const half = (y) => base + (head - base) * (y / top); // half-width of the tower at height y
+  const corners = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
+  for (const [sx, sz] of corners) g.add(beam(V(sx * base, 0, sz * base), V(sx * head, top, sz * head), 0.22, steel, 'leg'));
+  // Bracing on every face between these levels.
+  const levels = [0, 3.5, 7, 10, 12.5, 14.5, 16];
+  for (let i = 0; i < levels.length - 1; i++) {
+    const y0 = levels[i], y1 = levels[i + 1];
+    const h0 = half(y0), h1 = half(y1);
+    for (let f = 0; f < 4; f++) {
+      const [ax, az] = corners[f], [bx, bz] = corners[(f + 1) % 4];
+      g.add(beam(V(ax * h0, y0, az * h0), V(bx * h1, y1, bz * h1), 0.1, steel, 'brace'));
+      g.add(beam(V(bx * h0, y0, bz * h0), V(ax * h1, y1, az * h1), 0.1, steel, 'brace'));
+      g.add(beam(V(ax * h1, y1, az * h1), V(bx * h1, y1, bz * h1), 0.12, steel, 'ring'));
+    }
+  }
+  // Peak and cross arms with hanging insulators.
+  g.add(beam(V(0, top, 0), V(0, top + 2, 0), 0.18, steel, 'peak'));
+  const insul = stdMat(0x9fd8ff, { emissive: 0x1d4f73, emissiveIntensity: 0.4 });
+  insul.name = 'insulator';
+  for (const [y, span] of [[12.5, 4], [15, 3]]) {
+    g.add(boxAt(2 * span, 0.3, 0.3, steel, 0, y, 0, 'cross_arm'));
+    for (const x of [-span + 0.2, span - 0.2]) {
+      const ins = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 8), insul);
+      ins.position.set(x, y - 0.75, 0);
+      ins.name = 'insulator';
+      g.add(ins);
+    }
+  }
+  g.add(port('main', 0, 12.5, 0));
+  return g;
+}
+
 // id → builder. The id is also the file name: assets/models/<id>.glb
 export const BUILDERS = {
   'house-pv': buildHousePV,
   'office-pv': buildOfficePV,
+  house: buildHouse,
+  battery: buildBattery,
+  transformer: buildTransformer,
+  'grid-pylon': buildGridPylon,
 };

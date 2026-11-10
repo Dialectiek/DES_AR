@@ -12,7 +12,7 @@
 // A scene item's "name" replaces the library name on its panel.
 
 import * as THREE from 'three';
-import { FLOW_KINDS } from './diorama.js';
+import { FLOW_KINDS, fmtKw } from './diorama.js';
 
 // Sizes in real metres on the table (not diorama metres), before the `size` multiplier.
 const PX_PER_M = 4000;      // canvas resolution: 40 px per centimetre
@@ -87,6 +87,7 @@ function detailRows(item, measured, flows, nameOf) {
   const size = entry?.size ?? (measured && [measured.x, measured.y, measured.z]);
   if (size?.length === 3) add('Size', `${fmt(size[0])} × ${fmt(size[2])} m, ${fmt(size[1])} m high`);
   for (const [k, v] of Object.entries({ ...entry?.info, ...def.info })) add(k, fmt(v));
+  if (def.level && Number.isFinite(def.levelValue)) add('Charge', `${Math.round(def.levelValue * 100)} %`);
   if (entry?.source) add('Model', entry.source.startsWith('generated') ? 'generated' : entry.source);
 
   const flowRows = [];
@@ -99,7 +100,9 @@ function detailRows(item, measured, flows, nameOf) {
     else if (fromId === def.id) key = `→ ${nameOf(toId)}`;
     else key = `← ${nameOf(fromId)}`;
     const kind = FLOW_KINDS[f.kind];
-    flowRows.push({ key, value: `${(Number(f.kw) || 0).toFixed(1)} kW`, color: kind ? css(kind.color) : TEXT });
+    const kw = Number(f.kw) || 0;
+    const value = f.series?.missing ? 'no data' : `${kw < 0 ? '−' : ''}${fmtKw(kw)}`;
+    flowRows.push({ key, value, color: kind ? css(kind.color) : TEXT });
   }
   if (flowRows.length) rows.push({ heading: 'Energy flows' }, ...flowRows);
   return rows;
@@ -275,7 +278,10 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
   function setOpen(l, open) {
     if (l.open === open) return;
     l.open = open;
+    if (open && l.faces.open) refreshRows(l);
     if (open && !l.faces.open) {
+      l.rows = detailRows(l.item, l.measured, flows, nameOf);
+      l.rowsKey = JSON.stringify(l.rows);
       l.faces.open = makeFace(faceSize(l, true));
       l.headFrac = px(HEADER_H) / l.faces.open.h;
     }
@@ -299,8 +305,11 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
       p: 0,          // 0 = closed, 1 = fully dropped down
       headFrac: 1,   // name row height / open panel height
       faces: { closed: null, open: null },
+      item,
+      measured: box.isEmpty() ? null : box.getSize(new THREE.Vector3()),
     };
-    label.rows = detailRows(item, box.isEmpty() ? null : box.getSize(new THREE.Vector3()), flows, nameOf);
+    label.rows = detailRows(item, label.measured, flows, nameOf);
+    label.rowsKey = JSON.stringify(label.rows);
     label.faces.closed = makeFace(faceSize(label, false));
     draw(label, label.faces.closed);
     label.sprite = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -322,6 +331,24 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
     sprites.push(label.sprite);
   }
 
+  // Live values (timeline): rebuild the rows of an open panel; repaint only on a change.
+  function refreshRows(l) {
+    const rows = detailRows(l.item, l.measured, flows, nameOf);
+    const key = JSON.stringify(rows);
+    if (key === l.rowsKey) return;
+    l.rows = rows;
+    l.rowsKey = key;
+    const [w, h] = faceSize(l, true);
+    const old = l.faces.open;
+    if (old && (h !== old.h || w > old.w)) {
+      old.texture.dispose();
+      l.faces.open = makeFace([Math.max(w, old.w), h]);
+      l.headFrac = px(HEADER_H) / l.faces.open.h;
+    }
+    if (l.p > 0) redraw(l);
+  }
+  let refreshWait = 0;
+
   const _m = new THREE.Matrix4();
   return {
     group,
@@ -334,6 +361,11 @@ export function createAssetLabels({ items, flows = [], root, size = 1, log }) {
       holder.updateMatrix();
       root.updateMatrix();
       _m.multiplyMatrices(holder.matrix, root.matrix);
+      refreshWait -= dt;
+      if (refreshWait <= 0) {
+        refreshWait = 0.25;
+        for (const l of labels) if (l.open && l.faces.open) refreshRows(l);
+      }
       for (const l of labels) {
         l.sprite.position.copy(l.anchor).applyMatrix4(_m);
         l.sprite.position.y += (GAP + HEADER_H) * size;

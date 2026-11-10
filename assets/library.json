@@ -20,6 +20,42 @@
       "ports": ["pv", "meter"],
       "energy": { "role": "prosumer", "pvPeakKw": 22.4 }
     },
+    "house": {
+      "name": "House",
+      "file": "models/house.glb",
+      "source": "generated: tools/model-builders.js",
+      "category": "building",
+      "size": [9.7, 9.2, 8.0],
+      "ports": ["meter"],
+      "energy": { "role": "consumer" }
+    },
+    "battery": {
+      "name": "Neighbourhood battery",
+      "file": "models/battery.glb",
+      "source": "generated: tools/model-builders.js",
+      "category": "storage",
+      "size": [2.6, 2.6, 1.4],
+      "ports": ["main"],
+      "energy": { "role": "storage" }
+    },
+    "transformer": {
+      "name": "Transformer / controller",
+      "file": "models/transformer.glb",
+      "source": "generated: tools/model-builders.js",
+      "category": "grid",
+      "size": [3.6, 3.4, 2.3],
+      "ports": ["main"],
+      "energy": { "role": "hub" }
+    },
+    "grid-pylon": {
+      "name": "Grid (pylon)",
+      "file": "models/grid-pylon.glb",
+      "source": "generated: tools/model-builders.js",
+      "category": "grid",
+      "size": [8.0, 18.0, 5.0],
+      "ports": ["main"],
+      "energy": { "role": "grid" }
+    },
     "car-hatchback": {
       "name": "Electric hatchback",
       "file": "figures/car.glb",

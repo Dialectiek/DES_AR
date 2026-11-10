@@ -1,0 +1,35 @@
+{
+  "about": "How Illuminator (mosaik) scenario YAML model types appear in the diorama. 'asset' = key in library.json. 'role' = producer | consumer | storage | hub | unknown (used by the auto-layout). 'hidden' = not drawn (data sources). 'repeat' = name of a parameter that gives the number of copies (e.g. houses: 5). 'power' = the outputs that carry power in kW: a YAML connection from such an output becomes an energy flow; 'dir' is 'out' (energy goes the way of the connection) or 'in' (the other way, e.g. demand), 'signed' = a negative value reverses the flow, 'kind' = flow colour (diorama.js FLOW_KINDS). A type without 'power' turns every monitored output that is connected to another drawn model into a flow. 'port' = where flows attach on the model (node port_<name>; default port_main or the top). 'level' = an output in % shown as a fill bar (battery state of charge). 'grid' on a hub = add a grid connection that closes the hub's power balance (positive = import).",
+  "types": {
+    "CSV": { "hidden": true },
+    "PV": {
+      "asset": "solar-panel-stand",
+      "role": "producer",
+      "power": { "pv_gen": { "kind": "solar", "dir": "out" } }
+    },
+    "Wind": {
+      "asset": "wind-turbine",
+      "role": "producer",
+      "power": { "wind_gen": { "kind": "wind", "dir": "out" } }
+    },
+    "Load": {
+      "asset": "house",
+      "role": "consumer",
+      "repeat": "houses",
+      "port": "meter",
+      "power": { "load_dem": { "kind": "load", "dir": "in" } }
+    },
+    "Battery": {
+      "asset": "battery",
+      "role": "storage",
+      "level": "soc",
+      "power": {}
+    },
+    "Controller_T1": {
+      "asset": "transformer",
+      "role": "hub",
+      "power": { "flow2b": { "kind": "battery", "dir": "out", "signed": true } },
+      "grid": { "asset": "grid-pylon" }
+    }
+  }
+}

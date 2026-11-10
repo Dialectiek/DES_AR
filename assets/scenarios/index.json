@@ -1,0 +1,7 @@
+{
+  "about": "Illuminator scenarios for the diorama. 'yaml' is relative to this folder. The output CSV is the YAML's monitor file name, looked up next to the YAML; set 'csv' to override. Source of the power-balance tutorial files: https://github.com/illuminator-team/educational_material/tree/main/tutorials/power_balance (copied unchanged).",
+  "scenarios": [
+    { "id": "power-balance-a", "name": "Power balance a: PV, wind, 5 houses", "yaml": "power-balance-a/Tutorial_Power_Balance_a.yaml" },
+    { "id": "power-balance-b", "name": "Power balance b: with battery", "yaml": "power-balance-b/Tutorial_Power_Balance_b.yaml" }
+  ]
+}

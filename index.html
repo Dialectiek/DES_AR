@@ -12,7 +12,8 @@
     {
       "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+        "js-yaml": "./vendor/js-yaml.mjs"
       }
     }
   </script>
@@ -29,7 +30,17 @@
       <legend>What goes on the table</legend>
       <label><input type="radio" name="build" value="manual" checked> Manual: pick assets from a palette and place them, then connect them</label>
       <label><input type="radio" name="build" value="cards"> Colour cards: lay cards on the table and tap them (needs the camera feed)</label>
-      <label><input type="radio" name="build" value="demo"> Demo scene: house, office, car and grid with energy flows</label>
+      <label><input type="radio" name="build" value="demo"> Diorama: a scene or a simulation scenario, with energy flows</label>
+      <div class="scene-picker">
+        <label>Diorama
+          <select id="scene-select">
+            <option value="scene:demo">Demo scene: house, office, car and grid</option>
+          </select>
+        </label>
+        <label class="file">Or load a scenario from this computer (the .yaml and its output .csv together, or drop them on the page):
+          <input type="file" id="scenario-files" accept=".yaml,.yml,.csv" multiple>
+        </label>
+      </div>
       <p id="build-note" class="note" hidden>Camera table detection always shows the demo scene.</p>
     </fieldset>
 
@@ -86,7 +97,14 @@
         <li><b>Bumper</b> — undo the last card or connection</li>
         <li><b>Hold the bumper (1.5 s)</b> — calibrate the table again (clears everything)</li>
       </ul>
-      <p><b>Demo scene</b> — the diorama appears after corner setup; <b>hold the bumper</b> to calibrate again.</p>
+      <p><b>Diorama</b> — appears after corner setup; <b>hold the bumper</b> to calibrate again.</p>
+      <p><b>Scenario timeline</b> (diorama with a simulation scenario)</p>
+      <ul>
+        <li>A timeline panel lies along the table edge nearest to you. <b>Trigger on ▶</b> — play / pause;
+          <b>trigger on the chart</b> — jump to that time</li>
+        <li><b>Bumper</b> (short press) — play / pause</li>
+        <li>In <code>?preview=1</code>: click the panel, <b>Space</b> = play / pause, <b>← / →</b> = one time step</li>
+      </ul>
       <p><b>Asset names</b> (demo scene, and camera detection)</p>
       <ul>
         <li><b>Point at an asset + trigger</b> — show or hide its name above it</li>
@@ -107,6 +125,8 @@
         <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
         <li><code>?build=manual</code> / <code>cards</code> / <code>demo</code> — choose what goes on the table</li>
+        <li><code>?scenario=power-balance-b</code> — the diorama shows a simulation scenario (<code>assets/scenarios/index.json</code>); <code>?scene=demo</code> — a scene file</li>
+        <li><code>?speed=0.67</code> — timeline speed in simulated hours per second; <code>?autoplay=0</code> — start paused</li>
         <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
         <li><code>?preview=1</code> — demo diorama on a virtual table, no headset; <code>?preview=1&amp;build=manual</code> — try manual mode with the mouse (click = trigger, Backspace = bumper)</li>
         <li><code>?corner=0.1</code> — corner radius of the outline in metres (detect: default estimated, corners: default 0)</li>

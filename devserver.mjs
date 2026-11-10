@@ -39,6 +39,9 @@ const TYPES = {
   '.glb': 'model/gltf-binary',
   '.gltf': 'model/gltf+json',
   '.bin': 'application/octet-stream',
+  '.yaml': 'text/yaml; charset=utf-8',
+  '.yml': 'text/yaml; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
 };
 const COLOURS = { info: '\x1b[37m', warn: '\x1b[33m', error: '\x1b[31;1m' };
 const RESET = '\x1b[0m';

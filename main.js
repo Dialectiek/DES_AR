@@ -177,7 +177,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'slots v4';
+const APP_VERSION = 'scenario v1';
 info('Table Cube version ' + APP_VERSION);
 
 const onceKeys = new Set();
@@ -450,6 +450,10 @@ scene.add(tableAnchor);
 //   ?flows=0           hide the energy flows
 //   ?labels=0          hide the floating asset names (see asset-labels.js)
 //   ?labelsize=1.5     make the asset names bigger (default 1, 1.8 in ?preview=1)
+//   ?scenario=power-balance-b   an Illuminator scenario (assets/scenarios/index.json)
+//                      instead of a scene: built from its YAML, played from its output CSV
+//   ?speed=0.67        timeline speed in simulated hours per second (a day ≈ 36 s)
+//   ?autoplay=0        start the timeline paused
 // ---------------------------------------------------------------------------
 const DIORAMA = {
   fill: 0.85,               // use at most 85% of the table
@@ -459,6 +463,8 @@ const DIORAMA = {
   labels: params.get('labels') !== '0',
   // On a laptop screen the panels need to be bigger than in the headset to be readable.
   labelSize: params.has('labelsize') ? parseFloat(params.get('labelsize')) : params.get('preview') === '1' ? 1.8 : 1,
+  speed: params.has('speed') ? parseFloat(params.get('speed')) || 0.67 : 0.67,
+  autoplay: params.get('autoplay') !== '0',
 };
 
 const diorama = new THREE.Group();
@@ -466,39 +472,308 @@ tableAnchor.add(diorama);
 const dioramaState = { ground: { length: 15, width: 11 }, update: null, table: { length: 1.2, width: 0.8 } };
 let assetLabels = null; // floating asset names, once asset-labels.js has loaded
 
-(async function loadDiorama() {
-  const asset = params.get('asset');
+// Scenario playback (Illuminator YAML + monitor CSV): the timeline player, the bindings
+// of flows and level bars to CSV columns, and the timeline panel on the table edge.
+const scenarioRun = {
+  name: null, csv: null, player: null, sc: null,
+  flows: [],    // { flow, col, scale }
+  levels: [],   // { level, col, min, max }
+  panel: null, laidOut: false, hover: null,
+};
+
+async function fetchText(url) {
+  const r = await fetch(url, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(`${new URL(url, location.href).pathname}: HTTP ${r.status}`);
+  return r.text();
+}
+const fetchJsonUrl = async (url) => JSON.parse(await fetchText(url));
+
+// Removes the current diorama, its names and its timeline (before loading another one).
+function clearDiorama() {
+  for (const child of [...diorama.children]) {
+    diorama.remove(child);
+    child.traverse((o) => {
+      o.geometry?.dispose();
+      for (const m of [o.material].flat()) { m?.map?.dispose(); m?.dispose?.(); }
+    });
+  }
+  if (assetLabels) { tableAnchor.remove(assetLabels.group); assetLabels = null; }
+  if (scenarioRun.panel) { tableAnchor.remove(scenarioRun.panel.group); scenarioRun.panel.dispose(); }
+  Object.assign(scenarioRun, {
+    name: null, csv: null, player: null, sc: null, flows: [], levels: [], panel: null, laidOut: false, hover: null, edgeKey: null,
+  });
+  dioramaState.update = null;
+}
+
+// source: { scenario: id } (assets/scenarios/index.json) or { files: { yaml, csv, name } }
+// (texts loaded from this computer). Returns { scene, library, run }.
+async function loadScenario(source) {
+  const [{ load: parseYaml }, sc] = await Promise.all([import('js-yaml'), import('./scenario.js')]);
+  let yamlText, csvText = null, label;
+  if (source.files) {
+    ({ yaml: yamlText, csv: csvText, name: label } = source.files);
+  } else {
+    const index = await fetchJsonUrl('assets/scenarios/index.json');
+    const entry = index.scenarios.find((x) => x.id === source.scenario);
+    if (!entry) throw new Error(`unknown scenario "${source.scenario}" (see assets/scenarios/index.json)`);
+    const yamlUrl = new URL(`assets/scenarios/${entry.yaml}`, location.href);
+    yamlText = await fetchText(yamlUrl);
+    label = entry.name;
+    // The output CSV: given in the index, or the monitor file's name next to the YAML.
+    const monitorFile = parseYaml(yamlText)?.monitor?.file;
+    const csvUrl = entry.csv ? new URL(`assets/scenarios/${entry.csv}`, location.href)
+      : monitorFile ? new URL(String(monitorFile).split(/[\\/]/).pop(), yamlUrl) : null;
+    if (csvUrl) {
+      try { csvText = await fetchText(csvUrl); } catch (err) { warn('Scenario output CSV not found: no timeline', errText(err)); }
+    }
+  }
+  const scenario = parseYaml(yamlText);
+  const csv = csvText ? sc.parseMonitorCsv(csvText) : null;
+  const [typesConfig, library] = await Promise.all([
+    fetchJsonUrl('assets/illuminator-types.json'),
+    fetchJsonUrl('assets/library.json'),
+  ]);
+  const result = sc.scenarioToScene(scenario, typesConfig, library, { columns: csv?.columns ?? null });
+  for (const w of result.warnings) warn('Scenario: ' + w);
+  for (const u of result.unknownTypes) {
+    warn(`Scenario: model type "${u.type}" is not in illuminator-types.json, shown as a placeholder`, u.models);
+  }
+  for (const a of result.missingAssets) warn(`Scenario: asset "${a.key}" (${a.type}) is not in the library yet`);
+  if (csv) sc.addDerivedColumns(result.derived, csv.columns);
+  info('Scenario loaded', {
+    name: result.name,
+    items: result.scene.items.length,
+    flows: result.scene.flows.length,
+    hidden: result.hiddenModels,
+    steps: csv?.times.length ?? 0,
+  });
+  return {
+    scene: result.scene,
+    library,
+    run: { name: label || result.name, csv, stepSeconds: csv?.stepSeconds ?? result.stepSeconds ?? 900, sc },
+  };
+}
+
+// Prepares the playback of a loaded scenario on the built diorama: player, bindings,
+// timeline panel. Returns the fields for scenarioRun (loadDiorama commits them).
+async function prepareScenarioRun(d, run) {
+  const out = { name: run.name, csv: run.csv, sc: run.sc, flows: [], levels: [], player: null, panel: null };
+  if (!run.csv) {
+    for (const f of d.flows) f.setPower(NaN);
+    return out;
+  }
+  const { columns, times } = run.csv;
+  out.flows = d.flows.filter((f) => f.def.series).map((f) => ({
+    flow: f, col: columns.get(f.def.series.column), scale: f.def.series.scale ?? 1,
+  }));
+  out.levels = d.levels.map((level) => ({
+    level, col: columns.get(level.def.level.column), min: level.def.level.min ?? 0, max: level.def.level.max ?? 100,
+  }));
+  out.player = run.sc.createPlayer({
+    steps: times.length, stepSeconds: run.stepSeconds, speed: DIORAMA.speed, playing: DIORAMA.autoplay,
+  });
+  // Mini chart: one line per distinct column, in its flow colour.
+  const { FLOW_KINDS } = await import('./diorama.js');
+  const seen = new Set();
+  const series = [];
+  for (const f of d.flows) {
+    const s = f.def.series;
+    if (!s || s.missing || seen.has(s.column) || !columns.has(s.column)) continue;
+    seen.add(s.column);
+    const kind = FLOW_KINDS[f.def.kind] ?? FLOW_KINDS.flow;
+    series.push({ values: columns.get(s.column), color: kind.color, name: s.column.endsWith('.grid_import') ? 'grid' : kind.text });
+  }
   try {
-    info('Loading diorama…', asset ? { asset } : { scene: DIORAMA.scene });
+    const { createTimelinePanel } = await import('./timeline-panel.js');
+    out.panel = createTimelinePanel({ name: run.name, times, series, speedText: `${DIORAMA.speed} h / s` });
+    out.panel.group.visible = false; // until it is laid out along the table edge
+  } catch (err) {
+    warn('Timeline panel failed: the scenario still plays (bumper = play / pause)', errText(err));
+  }
+  info('Timeline ready', { steps: times.length, from: times[0], to: times.at(-1), speed: `${DIORAMA.speed} h/s` });
+  return out;
+}
+
+// Pushes the values at the player's time into the flows and level bars.
+function applyScenarioFrame(dt) {
+  const { player, sc } = scenarioRun;
+  if (!player) return;
+  player.update(dt);
+  const t = player.t;
+  for (const b of scenarioRun.flows) b.flow.setPower(b.col ? sc.valueAt(b.col, t) * b.scale : NaN);
+  for (const b of scenarioRun.levels) b.level.set(b.col ? (sc.valueAt(b.col, t) - b.min) / (b.max - b.min) : NaN);
+}
+
+function timelineShown() {
+  return !!scenarioRun.panel && scenarioRun.laidOut && tableAnchor.visible && diorama.visible;
+}
+
+function layoutTimeline() {
+  if (!scenarioRun.panel) return;
+  const { length, width } = dioramaState.table;
+  const { edge, width: w } = scenarioRun.panel.layout(length, width, headInTable());
+  scenarioRun.laidOut = true;
+  const key = `${edge.axis}${edge.sign}`;
+  if (key !== scenarioRun.edgeKey) { // log only when it moves to another edge
+    scenarioRun.edgeKey = key;
+    info('Timeline panel placed along the table edge', { edge: key, widthCm: Math.round(w * 100) });
+  }
+}
+
+// A pick() result from the timeline panel: play / pause or jump. True if it was handled.
+function applyTimelineHit(hit) {
+  const player = scenarioRun.player;
+  if (!hit || !player) return false;
+  if (hit.action === 'play') {
+    info(player.toggle() ? 'Timeline: play' : 'Timeline: pause');
+  } else if (hit.action === 'seek') {
+    player.seek(hit.fraction);
+    applyScenarioFrame(0);
+    info('Timeline: jump to ' + scenarioRun.sc.timeLabel(scenarioRun.csv.times[player.index]));
+  }
+  return true; // also 'none': the trigger landed on the panel, nothing else gets it
+}
+
+function toggleTimeline() {
+  if (!scenarioRun.player) return false;
+  say(scenarioRun.player.toggle() ? 'Timeline: play' : 'Timeline: pause');
+  return true;
+}
+
+// What is on the table in the diorama build: ?asset=, a scene file or a scenario.
+let dioramaLoads = 0;
+async function loadDiorama(source) {
+  const token = ++dioramaLoads;
+  clearDiorama();
+  try {
+    info('Loading diorama…', source);
     // Dynamic import: if the loader or a CDN file fails, the rest of the app keeps working.
     const { buildDiorama } = await import('./diorama.js');
-    const d = await buildDiorama({
-      sceneSource: asset
-        ? { ground: 'auto', items: [{ id: asset, asset }] }
-        : `assets/scenes/${encodeURIComponent(DIORAMA.scene)}.json`,
-      libraryUrl: asset ? 'assets/library.json' : undefined,
-      log: { info, warn },
-    });
+    let sceneSource, library, libraryUrl, run = null;
+    if (source.asset) {
+      sceneSource = { ground: 'auto', items: [{ id: source.asset, asset: source.asset }] };
+      libraryUrl = 'assets/library.json';
+    } else if (source.scenario || source.files) {
+      ({ scene: sceneSource, library, run } = await loadScenario(source));
+      libraryUrl = 'assets/library.json';
+    } else {
+      sceneSource = `assets/scenes/${encodeURIComponent(source.scene || 'demo')}.json`;
+    }
+    const d = await buildDiorama({ sceneSource, libraryUrl, library, log: { info, warn } });
+    if (token !== dioramaLoads) return; // another load started meanwhile
     d.flowsGroup.visible = params.get('flows') !== '0';
-    if (DIORAMA.labels) await addAssetLabels(d);
+    const runState = run ? await prepareScenarioRun(d, run) : null;
+    const labels = DIORAMA.labels ? await createLabels(d) : null;
+    if (token !== dioramaLoads) { runState?.panel?.dispose(); return; } // a newer load won
+    if (labels) {
+      tableAnchor.add(labels.group);
+      assetLabels = labels;
+    }
+    if (runState) {
+      Object.assign(scenarioRun, runState, { laidOut: false, hover: null, edgeKey: null });
+      if (runState.panel) tableAnchor.add(runState.panel.group);
+      applyScenarioFrame(0);
+    }
     diorama.add(d.group);
     dioramaState.ground = d.ground;
     dioramaState.update = d.update;
     dioramaScale = 0; // force a log line with the real scale
     fitDiorama(dioramaState.table.length, dioramaState.table.width);
   } catch (err) {
+    if (token !== dioramaLoads) return;
     error('Diorama failed to load, showing a placeholder', errText(err));
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshStandardMaterial({ color: 0x33ccff }));
     box.position.y = 0.05;
     diorama.add(box);
     dioramaState.ground = { length: 0.1 / DIORAMA.maxScale, width: 0.1 / DIORAMA.maxScale };
   }
+}
+
+// What the diorama shows: start-page menu "Diorama" (#scene-select), ?scene=, ?scenario=
+// or ?asset=. A scenario YAML (+ its output CSV) can also be picked from this computer or
+// dropped onto the page (also in ?preview=1).
+const SCENE_KEY = 'tablecube-scene-v1';
+const sceneSelect = document.getElementById('scene-select');
+const sceneFiles = document.getElementById('scenario-files');
+let lastScenarioFiles = null;
+
+function sourceFromValue(v) {
+  const [kind, ...rest] = String(v).split(':');
+  const id = rest.join(':');
+  if (kind === 'scenario') return { scenario: id };
+  if (kind === 'file' && lastScenarioFiles) return { files: lastScenarioFiles };
+  return { scene: kind === 'scene' && id ? id : 'demo' };
+}
+
+const initialScene = params.get('scenario') ? 'scenario:' + params.get('scenario')
+  : params.get('scene') ? 'scene:' + params.get('scene')
+    : (() => { try { return localStorage.getItem(SCENE_KEY) || 'scene:demo'; } catch { return 'scene:demo'; } })();
+loadDiorama(params.get('asset') ? { asset: params.get('asset') } : sourceFromValue(initialScene));
+
+(async function fillScenePicker() {
+  if (!sceneSelect) return;
+  try {
+    const index = await fetchJsonUrl('assets/scenarios/index.json');
+    for (const x of index.scenarios) sceneSelect.add(new Option(`Scenario: ${x.name}`, 'scenario:' + x.id));
+  } catch (err) {
+    warn('Scenario list not loaded', errText(err));
+  }
+  if (![...sceneSelect.options].some((o) => o.value === initialScene)) sceneSelect.add(new Option(initialScene, initialScene));
+  sceneSelect.value = initialScene;
 })();
+
+// Choosing a scene also chooses the diorama as what goes on the table.
+function chooseDioramaBuild() {
+  for (const inp of buildInputs) inp.checked = inp.value === 'demo';
+  try { localStorage.setItem(BUILD_KEY, 'demo'); } catch { /* ignore */ }
+}
+
+sceneSelect?.addEventListener('change', () => {
+  if (!sceneSelect.value.startsWith('file:')) {
+    try { localStorage.setItem(SCENE_KEY, sceneSelect.value); } catch { /* ignore */ }
+  }
+  chooseDioramaBuild();
+  loadDiorama(sourceFromValue(sceneSelect.value));
+});
+
+// files: a FileList / array with a scenario .yaml and (optionally) its output .csv.
+async function loadScenarioFiles(fileList) {
+  const files = [...fileList];
+  const yamlFile = files.find((f) => /\.ya?ml$/i.test(f.name));
+  const csvFile = files.find((f) => /\.csv$/i.test(f.name));
+  if (!yamlFile) {
+    warn('Pick a scenario .yaml file (together with its output .csv)', files.map((f) => f.name));
+    return;
+  }
+  if (!csvFile) warn('No output .csv picked: the diorama is built without a timeline');
+  lastScenarioFiles = {
+    yaml: await yamlFile.text(),
+    csv: csvFile ? await csvFile.text() : null,
+    name: yamlFile.name.replace(/\.ya?ml$/i, ''),
+  };
+  if (sceneSelect) {
+    const value = 'file:' + yamlFile.name;
+    if (![...sceneSelect.options].some((o) => o.value === value)) sceneSelect.add(new Option(`File: ${yamlFile.name}`, value));
+    sceneSelect.value = value;
+  }
+  chooseDioramaBuild();
+  loadDiorama({ files: lastScenarioFiles });
+}
+sceneFiles?.addEventListener('change', () => { if (sceneFiles.files.length) loadScenarioFiles(sceneFiles.files); });
+window.addEventListener('dragover', (e) => {
+  if ([...(e.dataTransfer?.types ?? [])].includes('Files')) e.preventDefault();
+});
+window.addEventListener('drop', (e) => {
+  if (!e.dataTransfer?.files?.length) return;
+  e.preventDefault();
+  loadScenarioFiles(e.dataTransfer.files);
+});
 
 // Scale the diorama to the table: true proportions, as big as fits.
 let dioramaScale = 0;
 function fitDiorama(tableLength, tableWidth) {
   dioramaState.table = { length: tableLength, width: tableWidth };
+  scenarioRun.laidOut = false; // the timeline panel follows the table edge
   const { length, width } = dioramaState.ground;
   let s = DIORAMA.fixedScale ?? Math.min(
     (DIORAMA.fill * tableLength) / length,
@@ -521,6 +796,12 @@ let lastDioramaTime = 0;
 function animateDiorama(time) {
   const dt = lastDioramaTime ? Math.min(0.1, (time - lastDioramaTime) / 1000) : 0;
   lastDioramaTime = time;
+  if (tableAnchor.visible && diorama.visible) {
+    applyScenarioFrame(dt);
+    if (scenarioRun.panel && !scenarioRun.laidOut) layoutTimeline();
+    if (scenarioRun.player) scenarioRun.panel?.update(scenarioRun.player, dt);
+  }
+  if (scenarioRun.panel) scenarioRun.panel.group.visible = timelineShown();
   if (dioramaState.update && tableAnchor.visible && diorama.visible) dioramaState.update(dt);
   if (assetLabels) {
     // The names belong to the diorama: hidden with it (manual and cards mode).
@@ -531,17 +812,18 @@ function animateDiorama(time) {
 
 // Floating name panels above the assets (asset-labels.js). Loaded separately: if it fails,
 // the diorama still shows, just without names.
-async function addAssetLabels(d) {
+// Returns the labels (not yet added to the table), or null.
+async function createLabels(d) {
   try {
     const { createAssetLabels } = await import('./asset-labels.js');
     const labels = createAssetLabels({
       items: d.items, flows: d.flows, root: d.group, size: DIORAMA.labelSize, log: { info, warn },
     });
-    tableAnchor.add(labels.group);
-    assetLabels = labels;
     info('Asset labels ready', { count: labels.labels.length });
+    return labels;
   } catch (err) {
     warn('Asset labels failed, showing the diorama without them', errText(err));
+    return null;
   }
 }
 
@@ -1515,6 +1797,7 @@ function startCalibration(reason) {
   colourCal.done = false;
   colourCal.pending = null;
   slotGroup.visible = false;
+  scenarioRun.laidOut = false; // along the edge nearest to the user, once calibrated
   info('Corner calibration started', reason);
 }
 
@@ -1642,7 +1925,7 @@ function bumperUp() {
     bumper.fired = true;
     if (state.build === 'manual') manualBack();
     else if (state.build === 'cards') undoBuild();
-    else say('Hold the bumper to calibrate again');
+    else if (!toggleTimeline()) say('Hold the bumper to calibrate again');
   }
 }
 
@@ -2028,9 +2311,17 @@ function demoStep() {
   laser.set([]);
   aimCursor.visible = false;
   const t = state.table;
+  const run = scenarioRun;
+  const clock = run.player ? `${run.sc.timeLabel(run.csv.times[run.player.index])} ${run.player.playing ? '▶' : '❚❚'}` : '';
   const line1 = performance.now() < build.messageUntil ? build.message
-    : `Demo scene  ·  ${t.length.toFixed(2)} × ${t.width.toFixed(2)} m`;
-  setHud(line1, (assetLabels ? 'trigger on an asset = name   ·   ' : '') + 'hold the bumper = calibrate again');
+    : run.name ? `${run.name}  ·  ${clock}`
+      : `Demo scene  ·  ${t.length.toFixed(2)} × ${t.width.toFixed(2)} m`;
+  const hints = [];
+  if (run.panel) hints.push('trigger on the timeline = play / jump');
+  if (run.player) hints.push('bumper = play / pause');
+  if (assetLabels) hints.push('trigger on an asset = name');
+  hints.push('hold the bumper = calibrate again');
+  setHud(line1, hints.join('   ·   '));
 }
 
 // ---------------------------------------------------------------------------
@@ -2604,16 +2895,36 @@ function pickLabel(ray) {
 
 // Every XR frame: highlight the panel the controller points at.
 function labelsStep(frame, refSpace) {
-  const src = labelsShown() ? pickActiveSource() : null;
+  const timeline = timelineShown();
+  const src = labelsShown() || timeline ? pickActiveSource() : null;
   const ray = src ? sourceRay(frame, refSpace, src) : null;
-  const hit = ray ? pickLabel(ray) : null;
+  const tHit = ray && timeline ? scenarioRun.panel.pick(ray) : null; // the timeline panel wins
+  scenarioRun.hover = tHit;
+  scenarioRun.panel?.setHover(tHit);
+  const hit = ray && !tHit && labelsShown() ? pickLabel(ray) : null;
   assetLabels?.setHover(hit);
   if (!ray) {
     labelPointer.set([]);
     return;
   }
-  labelPointer.set([ray.origin, hit ? hit.point : ray.origin.clone().addScaledVector(ray.dir, 1.5)]);
-  labelPointer.line.material.opacity = hit ? 0.9 : 0.3;
+  const end = tHit?.point ?? hit?.point;
+  labelPointer.set([ray.origin, end ?? ray.origin.clone().addScaledVector(ray.dir, 1.5)]);
+  labelPointer.line.material.opacity = end ? 0.9 : 0.3;
+}
+
+// Trigger on the timeline panel: play / pause or jump. True if it hit the panel.
+function timelineTriggerAt(e) {
+  if (!timelineShown()) return false;
+  const src = e?.inputSource;
+  if (src && !src.gamepad && hasController()) return false; // stray hand pinch
+  let hit = null;
+  if (src && e.frame) {
+    const ray = sourceRay(e.frame, renderer.xr.getReferenceSpace(), src);
+    if (ray) hit = scenarioRun.panel.pick(ray);
+  } else {
+    hit = scenarioRun.hover;
+  }
+  return applyTimelineHit(hit);
 }
 
 // Trigger on an asset: show or hide its name. On a name: show or hide its details.
@@ -2853,6 +3164,7 @@ function gazeStep(frame, refSpace) {
 }
 
 function onSelect(e) {
+  if (timelineTriggerAt(e)) return; // pointing at the timeline panel
   if (toggleLabelAt(e)) return; // pointing at an asset name: that wins over everything else
   if (state.mode === 'corners') {
     if (!calib.done) placeCorner(e?.inputSource);
@@ -3302,22 +3614,45 @@ function startPreview() {
     labelRaycaster.setFromCamera(mouse.ndc, camera);
     return assetLabels?.pick(labelRaycaster) ?? null;
   };
+  // The timeline panel (scenarios) is under the mouse: { action, ... } or null.
+  const pickTimeline = () => {
+    if (!timelineShown()) return null;
+    labelRaycaster.setFromCamera(mouse.ndc, camera);
+    return scenarioRun.panel.pick({ origin: labelRaycaster.ray.origin, dir: labelRaycaster.ray.direction });
+  };
   canvas.addEventListener('pointermove', (e) => { pickAt(e); mouse.inside = true; });
   canvas.addEventListener('pointerleave', () => { mouse.inside = false; });
   canvas.addEventListener('click', (e) => {
     const hit = pickAt(e);
+    if (applyTimelineHit(pickTimeline())) return;
     if (hit) assetLabels.activate(hit);
     else assetLabels?.hideAll();
   });
+  // Space = play / pause, ← / → = one time step back / forward.
+  window.addEventListener('keydown', (e) => {
+    const player = scenarioRun.player;
+    if (!player || e.target !== document.body) return;
+    if (e.key === ' ') { e.preventDefault(); toggleTimeline(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      player.pause();
+      player.step(e.key === 'ArrowLeft' ? -1 : 1);
+      applyScenarioFrame(0);
+    }
+  });
   renderer.setAnimationLoop((time) => {
     let hit = null;
-    if (assetLabels && mouse.inside) {
+    const tHit = mouse.inside ? pickTimeline() : null;
+    scenarioRun.hover = tHit;
+    scenarioRun.panel?.setHover(tHit);
+    if (assetLabels && mouse.inside && !tHit) {
       labelRaycaster.setFromCamera(mouse.ndc, camera);
       hit = assetLabels.pick(labelRaycaster);
     }
     assetLabels?.setHover(hit);
-    canvas.style.cursor = hit ? 'pointer' : '';
-    placeCamera(time, !!hit);
+    canvas.style.cursor = hit || (tHit && tHit.action !== 'none') ? 'pointer' : '';
+    // The turntable stops for a scenario, so its timeline stays in front of you.
+    placeCamera(time, !!hit || !!scenarioRun.panel);
     animateDiorama(time);
     renderer.render(scene, camera);
   });
