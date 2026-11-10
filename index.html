@@ -11,7 +11,8 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
       }
     }
   </script>
@@ -20,7 +21,8 @@
   <main class="panel">
     <h1>Table Cube</h1>
     <p class="lead">
-      Finds the white table in the headset's camera feed, outlines it and puts a cube in the middle.
+      Finds the white table, then scans the colour cards on it: each card becomes an
+      energy-system asset (mapping in <code>assets/components.json</code>). Click two assets to connect them.
     </p>
 
     <fieldset id="setup-picker">
@@ -55,8 +57,15 @@
       <p><b>Corner setup</b></p>
       <ul>
         <li><b>Trigger</b> — place a corner where the cursor is (4 corners, any order)</li>
-        <li><b>Bumper</b> — undo the last corner; after setup: calibrate again</li>
+        <li><b>Bumper</b> — undo the last corner</li>
         <li>No surface found for corner 1? Touch the corner with the controller tip and press the trigger.</li>
+      </ul>
+      <p><b>After corner setup: building the energy system</b></p>
+      <ul>
+        <li><b>Trigger, aiming at the table</b> — scan: every new colour card gets its asset</li>
+        <li><b>Trigger on an asset, then on another</b> — connect them (again = disconnect)</li>
+        <li><b>Bumper</b> — undo the last scan or connection</li>
+        <li><b>Hold the bumper (1.5 s)</b> — calibrate the table again (clears everything)</li>
       </ul>
       <p><b>Camera detection</b></p>
       <ul>
@@ -69,7 +78,7 @@
     <details>
       <summary>URL options</summary>
       <ul>
-        <li><code>?debug=1</code> — start with the camera debug view visible</li>
+        <li><code>?debug=1</code> — start with the camera debug view visible (corner setup: shows the card colours of the last scan)</li>
         <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
         <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
