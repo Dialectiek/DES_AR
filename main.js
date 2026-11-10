@@ -177,8 +177,14 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'slots v4';
+const APP_VERSION = 'manual v2';
 info('Table Cube version ' + APP_VERSION);
+// index.html checks this: without it, the page is running an older (cached) main.js.
+window.__tableCubeVersion = APP_VERSION;
+{
+  const el = document.getElementById('app-version');
+  if (el) el.textContent = 'Version ' + APP_VERSION;
+}
 
 const onceKeys = new Set();
 function once(key, level, msg, data) {
@@ -3208,6 +3214,13 @@ function onSessionEnd() {
 startBtn.addEventListener('click', () => startAR(chosenFeatures()));
 safeBtn.addEventListener('click', () => startAR([]));
 rawBtn.addEventListener('click', rawXRTest);
+// Laptop: the same choice ("What goes on the table") on a virtual table, see startPreview.
+document.getElementById('start-preview')?.addEventListener('click', () => {
+  const p = new URLSearchParams(location.search);
+  p.set('preview', '1');
+  p.set('build', chosenBuild());
+  location.search = p.toString();
+});
 window.addEventListener('resize', () => {
   if (renderer.xr.isPresenting) return;
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -3215,10 +3228,12 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ?preview=1 — look at the diorama on a normal screen (no headset, no WebXR), on a
-// virtual 1.6 x 0.8 m table. Handy for checking models and layout from the laptop.
-// ?preview=1&build=manual — try manual mode there: the mouse is the controller ray,
-// click = trigger, Backspace = bumper (short press). The camera stays still.
+// ?preview=1 — no headset, no WebXR: a virtual 1.6 x 0.8 m table on the laptop screen,
+// with what is chosen under "What goes on the table" (?build= or the saved choice):
+//   manual — the mouse is the controller ray, click = trigger, Backspace = bumper (short
+//            press). The camera stays still.
+//   demo   — the diorama on a turntable; click an asset for its name.
+//   cards  — needs the headset camera, so the preview shows the demo instead.
 const preview = { active: false, aim: null, ndc: null };
 const _ray = new THREE.Raycaster();
 
@@ -3232,11 +3247,13 @@ function previewAim() {
 }
 
 function startPreview() {
-  const manualPreview = params.get('build') === 'manual';
+  const chosen = chosenBuild();
+  const manualPreview = chosen === 'manual';
   state.build = manualPreview ? 'manual' : 'demo';
   info(manualPreview
     ? 'Preview mode: manual mode on a virtual 1.6 x 0.8 m table (mouse = controller, click = trigger, Backspace = bumper)'
     : 'Preview mode: diorama on a virtual 1.6 x 0.8 m table');
+  if (chosen === 'cards') info('Colour cards need the headset camera: the preview shows the demo scene');
   document.body.classList.add('preview');
   Object.assign(renderer.domElement.style, { display: 'block', position: 'fixed', inset: '0', zIndex: '0' });
   renderer.setClearColor(0x20252c, 1);

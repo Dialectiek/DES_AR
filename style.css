@@ -176,3 +176,4 @@ body.preview .panel { display: none; }
 #build-picker { border-color: var(--accent); }
 #build-picker:disabled label { color: var(--muted); cursor: default; }
 .note { margin: 6px 0 0; font-size: 0.9rem; color: var(--muted); }
+.note.warning { color: var(--no); font-weight: 600; }

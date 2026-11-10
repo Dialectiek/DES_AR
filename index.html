@@ -20,6 +20,7 @@
 <body>
   <main class="panel">
     <h1>Table Cube</h1>
+    <p id="app-version" class="note"></p>
     <p class="lead">
       Point at the 4 corners of the table, then build an energy system on it: place assets
       by hand or with colour cards (<code>assets/components.json</code>), then click two assets to connect them.
@@ -51,6 +52,7 @@
     <div class="buttons">
       <button id="start" disabled>Checking WebXR…</button>
       <button id="start-safe" class="secondary" disabled>Safe start (no extra features)</button>
+      <button id="start-preview" class="secondary" type="button">Preview on this screen (no headset)</button>
     </div>
 
     <fieldset class="diagnostics">
@@ -108,7 +110,9 @@
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
         <li><code>?build=manual</code> / <code>cards</code> / <code>demo</code> — choose what goes on the table</li>
         <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
-        <li><code>?preview=1</code> — demo diorama on a virtual table, no headset; <code>?preview=1&amp;build=manual</code> — try manual mode with the mouse (click = trigger, Backspace = bumper)</li>
+        <li><code>?preview=1</code> — no headset: a virtual table on this screen, with what is chosen under "What goes on the table"
+          (or <code>&amp;build=manual</code> / <code>demo</code>). Manual: the mouse is the controller (click = trigger, Backspace = bumper).
+          Colour cards need the headset camera, so their preview shows the demo.</li>
         <li><code>?corner=0.1</code> — corner radius of the outline in metres (detect: default estimated, corners: default 0)</li>
         <li><code>?white=180</code> — fixed brightness threshold for "white" (default: automatic)</li>
         <li><code>?aa=0</code> — turn antialiasing off</li>
@@ -150,6 +154,13 @@
       setTimeout(function () {
         if (!window.__tableCubeLoaded) {
           add('main.js has not started after 8 s. Is the headset online? three.js is loaded from a CDN.');
+        } else if (!window.__tableCubeVersion) {
+          // This page and main.js come from different versions: the browser still has an
+          // old main.js (GitHub Pages lets browsers keep files for 10 minutes).
+          var msg = 'This page runs an older main.js (browser cache): the menu above will not work. Reload the page in a few minutes.';
+          add(msg);
+          var v = document.getElementById('app-version');
+          if (v) { v.textContent = msg; v.className = 'note warning'; }
         }
       }, 8000);
     })();
