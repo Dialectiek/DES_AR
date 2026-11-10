@@ -36,11 +36,13 @@ import {
   dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex, describeColour,
   worldToPixel, samplePatch, nearestColour, balanceColour, alignProjection, sampleSlots, pixelShiftToNdc,
 } from './cards.js';
-import { EnergySystem } from './system.js';
+import { EnergySystem, colourForType } from './system.js';
 import {
   loadComponents, preloadModels, makeAssetObject, disposeAssetObject, faceTowards, pickAsset, displayColour,
 } from './assets.js';
 import { LinkView } from './links.js';
+import { insideTable, backAction } from './manual.js';
+import { createPalette } from './palette.js';
 
 window.__tableCubeLoaded = true;
 
@@ -294,8 +296,38 @@ function chosenSetup() {
 for (const inp of setupInputs) {
   inp.addEventListener('change', () => {
     try { localStorage.setItem(SETUP_KEY, chosenSetup()); } catch { /* ignore */ }
+    updateBuildPicker();
   });
 }
+
+// What goes on the table after the corner setup: 'manual' (palette), 'cards' (colour
+// cards) or 'demo' (the diorama). ?build= overrides. Camera table detection never reaches
+// the build step, so it always shows the demo.
+const BUILD_KEY = 'tablecube-build-v1';
+const BUILD_MODES = ['manual', 'cards', 'demo'];
+const buildPicker = document.getElementById('build-picker');
+const buildInputs = [...document.querySelectorAll('#build-picker input[name="build"]')];
+try {
+  const saved = [params.get('build'), localStorage.getItem(BUILD_KEY)].find((v) => BUILD_MODES.includes(v));
+  if (saved) for (const inp of buildInputs) inp.checked = inp.value === saved;
+} catch { /* ignore */ }
+function chosenBuild() {
+  if (chosenSetup() === 'detect') return 'demo';
+  const v = buildInputs.find((i) => i.checked)?.value;
+  return BUILD_MODES.includes(v) ? v : 'manual';
+}
+function updateBuildPicker() {
+  const detect = chosenSetup() === 'detect';
+  if (buildPicker) buildPicker.disabled = detect;
+  const note = document.getElementById('build-note');
+  if (note) note.hidden = !detect;
+}
+for (const inp of buildInputs) {
+  inp.addEventListener('change', () => {
+    try { localStorage.setItem(BUILD_KEY, chosenBuild()); } catch { /* ignore */ }
+  });
+}
+updateBuildPicker();
 
 function setPageStatus(text) {
   statusEl.textContent = text;
@@ -482,12 +514,13 @@ let lastDioramaTime = 0;
 function animateDiorama(time) {
   const dt = lastDioramaTime ? Math.min(0.1, (time - lastDioramaTime) / 1000) : 0;
   lastDioramaTime = time;
-  if (dioramaState.update && tableAnchor.visible) dioramaState.update(dt);
+  if (dioramaState.update && tableAnchor.visible && diorama.visible) dioramaState.update(dt);
 }
 
 // Energy-system components (assets/components.json) and their models, loaded at page
 // load so problems show up in the log before entering AR.
-const components = { config: null, templates: new Map(), colourTable: [], error: null };
+// loaded = true once the models are in too (or loading failed): the manual palette waits for it.
+const components = { config: null, templates: new Map(), colourTable: [], error: null, loaded: false };
 components.ready = (async () => {
   try {
     const config = await loadComponents();
@@ -504,6 +537,8 @@ components.ready = (async () => {
   } catch (err) {
     components.error = errText(err);
     error('Could not load the components', components.error);
+  } finally {
+    components.loaded = true;
   }
 })();
 
@@ -1156,6 +1191,7 @@ const state = {
   session: null,
   startedAt: 0,
   mode: 'camera',          // 'corners', 'camera' or 'gaze'
+  build: 'manual',         // what goes on the table: 'manual', 'cards' or 'demo' (start-page menu)
   usingFloor: true,
   features: {},
   glBinding: null,
@@ -1528,10 +1564,18 @@ function finishCalibration() {
   if (r.skewDeg > 10 || r.mismatch > 0.15) {
     warn('The 4 corners are far from a rectangle. Hold the bumper to calibrate again if the outline looks wrong.');
   }
-  if (!state.features['camera-access']) {
-    warn('No camera feed: card scanning is off. Start again with the camera feed enabled.');
+  if (state.build === 'cards') {
+    if (!state.features['camera-access']) {
+      warn('No camera feed: card scanning is off. Start again with the camera feed enabled.');
+    }
+    startColourCalibration('table calibrated');
+    return;
   }
-  startColourCalibration('table calibrated');
+  // Manual and demo: no colour squares.
+  colourCal.done = true;
+  slotGroup.visible = false;
+  if (state.build === 'manual') enterManual();
+  else info('Demo scene on the table');
 }
 
 // Bumper (top button). During calibration: undo the last corner (on press).
@@ -1568,7 +1612,9 @@ function bumperUp() {
   bumper.lastUp = performance.now();
   if (!bumper.fired) {
     bumper.fired = true;
-    undoBuild();
+    if (state.build === 'manual') manualBack();
+    else if (state.build === 'cards') undoBuild();
+    else say('Hold the bumper to calibrate again');
   }
 }
 
@@ -1682,6 +1728,7 @@ function resetBuild() {
   build.selected = null;
   build.hovered = null;
   cornerEdges.set([]);
+  resetManual();
 }
 
 function undoBuild() {
@@ -1920,14 +1967,7 @@ function buildStep(time, frame, pose) {
   if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
   else cornerEdges.set([]);
 
-  // Rings: hover = bright, selected = pulsing.
-  const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
-  for (const [id, obj] of build.objects) {
-    const { ring, ringMat } = obj.userData;
-    const sel = id === build.selected, hov = id === build.hovered;
-    ringMat.opacity = sel ? 0.7 + 0.3 * pulse : hov ? 1 : 0.5;
-    ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
-  }
+  highlightAssets(time);
   build.links?.update(dt);
 
   // HUD
@@ -1941,6 +1981,272 @@ function buildStep(time, frame, pose) {
   else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on a card = add`;
   const camNote = state.features['camera-access'] ? '' : 'no camera: no scanning · ';
   setHud(line1, camNote + 'trigger on asset = connect · bumper = undo · hold = recalibrate');
+}
+
+// Rings under the assets: hover = bright, selected = pulsing (cards and manual mode).
+function highlightAssets(time) {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
+  for (const [id, obj] of build.objects) {
+    const { ring, ringMat } = obj.userData;
+    const sel = id === build.selected, hov = id === build.hovered;
+    ringMat.opacity = sel ? 0.7 + 0.3 * pulse : hov ? 1 : 0.5;
+    ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
+  }
+}
+
+// Demo scene: the diorama is all there is; only recalibration.
+function demoStep() {
+  checkBumperHold(performance.now());
+  laser.set([]);
+  aimCursor.visible = false;
+  const t = state.table;
+  const line1 = performance.now() < build.messageUntil ? build.message : 'Demo scene';
+  setHud(line1, `${t.length.toFixed(2)} × ${t.width.toFixed(2)} m   ·   hold the bumper = calibrate again`);
+}
+
+// ---------------------------------------------------------------------------
+// Manual mode (after the table corners): place assets from a palette, then connect them.
+//   place   — trigger on a palette tile picks an asset, trigger on the table places it
+//   connect — trigger on an asset, then on another, connects them (clickAsset, as cards)
+//   done    — finished; the flows keep running
+// "Done" on the palette moves on; the bumper steps back (manual.js: backAction).
+// Shares build.system / build.objects / build.links / syncScene with the cards mode.
+// ---------------------------------------------------------------------------
+const MANUAL_MIN_GAP = 0.06; // metres between asset centres
+const manual = {
+  phase: 'place',
+  palette: null,         // createPalette(), once components.json and the models are loaded
+  laidOut: false,        // palette placed along the table edge for this calibration
+  hoverTile: null,       // palette tile under the controller ray
+  lastTrigger: 0,
+};
+
+// The aim of the controller ray (or the mouse in ?preview=1): { origin, dir, point, how }.
+function currentAim() {
+  if (preview.active) return preview.aim;
+  const src = pickActiveSource();
+  return src ? calib.sources.get(src)?.aim ?? null : null;
+}
+
+function ensurePalette() {
+  if (manual.palette) return manual.palette;
+  if (!components.loaded || !components.config) return null;
+  manual.palette = createPalette(components.config, components.templates);
+  manual.palette.group.visible = false;
+  tableAnchor.add(manual.palette.group);
+  return manual.palette;
+}
+
+function layoutPalette() {
+  const pal = ensurePalette();
+  if (!pal || !state.table) return;
+  pal.layout(state.table.length, state.table.width, headInTable());
+  pal.setPhase(manual.phase);
+  manual.laidOut = true;
+  info('Palette placed along the table edge', { phase: manual.phase, selected: pal.selected });
+}
+
+function enterManual() {
+  manual.phase = 'place';
+  manual.laidOut = false;
+  build.selected = null;
+  ensureSystem();
+  if (ensurePalette()) layoutPalette(); // otherwise manualStep does it once loaded
+  info('Manual mode: place assets');
+}
+
+function resetManual() {
+  manual.phase = 'place';
+  manual.laidOut = false;
+  manual.hoverTile = null;
+  if (manual.palette) {
+    manual.palette.group.visible = false;
+    manual.palette.hideGhost();
+  }
+}
+
+function setManualPhase(phase, message) {
+  manual.phase = phase;
+  build.selected = null;
+  build.hovered = null;
+  manual.palette?.setPhase(phase);
+  manual.palette?.hideGhost();
+  cornerEdges.set([]);
+  say(message);
+}
+
+// Can an asset go at this table-local point? { ok, reason }
+function placeCheck(local) {
+  const t = state.table;
+  if (!insideTable(local.x, local.z, t.length, t.width)) return { ok: false, reason: 'Aim inside the table outline' };
+  const sys = build.system;
+  const near = sys?.nodes.find((n) => Math.hypot(n.x - local.x, n.z - local.z) < MANUAL_MIN_GAP);
+  if (near) return { ok: false, reason: `Too close to the ${sys.labelOf(near)}` };
+  return { ok: true };
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function manualTrigger(src) {
+  if (!acceptInput(src, 'pinch')) return;
+  const now = performance.now();
+  if (now - manual.lastTrigger < 300) return; // double press
+  manual.lastTrigger = now;
+  if (src && calib.sources.has(src)) calib.active = src;
+  const sys = ensureSystem();
+  const pal = ensurePalette();
+  if (!sys || !pal) {
+    say(components.error ? 'components.json failed to load, see the log' : 'Still loading the assets…', 'warn');
+    return;
+  }
+  const tile = manual.hoverTile?.userData;
+
+  if (manual.phase === 'place') {
+    if (tile?.kind === 'asset') {
+      pal.selected = tile.type;
+      say(`Placing: ${tile.label}. Trigger on the table to put it there`);
+      return;
+    }
+    if (tile?.kind === 'done') {
+      if (!sys.nodes.length) {
+        say('Place at least one asset first', 'warn');
+        return;
+      }
+      setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now trigger on an asset, then on another`);
+      return;
+    }
+    const aim = currentAim();
+    if (!aim?.point) {
+      say('Point the ray at the table', 'warn');
+      return;
+    }
+    tableAnchor.updateMatrixWorld();
+    const local = tableAnchor.worldToLocal(aim.point.clone());
+    const check = placeCheck(local);
+    if (!check.ok) {
+      say(check.reason, 'warn');
+      return;
+    }
+    const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
+    syncScene();
+    info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
+    say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+    return;
+  }
+
+  if (manual.phase === 'connect') {
+    if (tile?.kind === 'back') {
+      setManualPhase('place', 'Back to placing: pick an asset, trigger on the table');
+      return;
+    }
+    if (tile?.kind === 'done') {
+      setManualPhase('done', `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`);
+      return;
+    }
+    if (build.hovered !== null) clickAsset(build.hovered);
+    else if (build.selected !== null) {
+      build.selected = null;
+      say('Selection cleared');
+    }
+  }
+  // done: view only
+}
+
+// Short bumper press: undo, or one phase back.
+function manualBack() {
+  if (build.selected !== null) {
+    build.selected = null;
+    say('Selection cleared');
+    return;
+  }
+  const sys = build.system;
+  const action = backAction(manual.phase, sys?.lastStepKind() ?? null);
+  if (action === 'to-connect') setManualPhase('connect', 'Editing the connections again');
+  else if (action === 'to-place') setManualPhase('place', 'Back to placing assets');
+  else if (action === 'undo') {
+    const what = sys.undo();
+    syncScene();
+    say(what ? 'Undo: ' + what : 'Nothing to undo');
+  } else say('Nothing to undo');
+}
+
+const _c = new THREE.Vector3();
+
+function manualStep(time) {
+  checkBumperHold(performance.now());
+  const dt = build.lastTime ? Math.min(0.1, (time - build.lastTime) / 1000) : 0;
+  build.lastTime = time;
+  const sys = ensureSystem();
+  const pal = ensurePalette();
+  if (!sys || !pal) {
+    laser.set([]);
+    aimCursor.visible = false;
+    setHud(components.error ? 'The assets failed to load, see the log' : 'Loading the assets…', 'hold the bumper = calibrate again');
+    return;
+  }
+  if (!manual.laidOut) layoutPalette();
+  tableAnchor.updateMatrixWorld();
+  const head = headInTable();
+
+  // What the ray points at: a palette tile, a placed asset (connecting), or the table.
+  const aim = currentAim();
+  const tileObj = aim ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
+  const assetObj = !tileObj && aim && manual.phase === 'connect' && build.objects.size
+    ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
+  manual.hoverTile = tileObj;
+  build.hovered = assetObj ? assetObj.userData.nodeId : null;
+  const local = aim?.point && !tileObj && !assetObj ? tableAnchor.worldToLocal(_c.copy(aim.point)) : null;
+  const check = local && manual.phase === 'place' ? placeCheck(local) : null;
+
+  // Laser, cursor and ghost.
+  let end = null;
+  if (tileObj) end = tileObj.localToWorld(_a.copy(tileObj.userData.pickCentre));
+  else if (assetObj) end = assetObj.localToWorld(_a.copy(assetObj.userData.pickCentre));
+  else if (aim?.point) end = aim.point;
+  if (aim && aim.how !== 'mouse') {
+    laser.set(end ? (aim.how === 'controller tip' && !tileObj && !assetObj ? [] : [aim.origin, end])
+      : [aim.origin, _b.copy(aim.origin).addScaledVector(aim.dir, 2)]);
+  } else laser.set([]);
+  const outside = check && !insideTable(local.x, local.z, state.table.length, state.table.width);
+  aimCursor.visible = !!local && manual.phase !== 'done' && (manual.phase !== 'place' || outside);
+  if (aimCursor.visible) aimCursor.position.copy(aim.point);
+  cursorMat.color.setHex(outside ? 0xffa040 : 0xffffff);
+  if (check && !outside) pal.showGhost(local.x, local.z, head, check.ok);
+  else pal.hideGhost();
+
+  // Rubber band from the selected asset to where the ray points.
+  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
+  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
+  else cornerEdges.set([]);
+
+  highlightAssets(time);
+  pal.update(time, tileObj);
+  build.links?.update(dt);
+
+  // HUD: line 1 = what the trigger does now, line 2 = the rest.
+  const tile = tileObj?.userData;
+  const n = sys.nodes.length, m = sys.links.length;
+  const label = (type) => components.config.assets[type]?.label ?? type;
+  let line1, line2;
+  if (manual.phase === 'place') {
+    if (tile?.kind === 'asset') line1 = `${tile.label}: trigger to pick it`;
+    else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): trigger to start connecting` : 'Place at least one asset first';
+    else if (check && !check.ok) line1 = check.reason;
+    else line1 = `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
+    line2 = `${plural(n, 'asset')} · pick another asset on the palette · bumper = undo · hold = recalibrate`;
+  } else if (manual.phase === 'connect') {
+    if (tile?.kind === 'back') line1 = 'Back to placing assets';
+    else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): trigger to finish`;
+    else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
+    else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
+    else line1 = `Connect: trigger on an asset, then on another (${plural(m, 'connection')})`;
+    line2 = 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
+  } else {
+    line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}`;
+    line2 = 'bumper = edit the connections · hold = start over';
+  }
+  if (performance.now() < build.messageUntil) line1 = build.message;
+  setHud(line1, line2);
 }
 
 // ---------------------------------------------------------------------------
@@ -2200,7 +2506,9 @@ function cornersStep(time, frame, pose, refSpace) {
     return;
   }
   if (calib.done) {
-    buildStep(time, frame, pose);
+    if (state.build === 'manual') manualStep(time);
+    else if (state.build === 'cards') buildStep(time, frame, pose);
+    else demoStep();
     return;
   }
 
@@ -2455,7 +2763,9 @@ function onSelect(e) {
   if (state.mode === 'corners') {
     if (!calib.done) placeCorner(e?.inputSource);
     else if (!colourCal.done) colourTrigger(e?.inputSource);
-    else buildTrigger(e?.inputSource);
+    else if (state.build === 'manual') manualTrigger(e?.inputSource);
+    else if (state.build === 'cards') buildTrigger(e?.inputSource);
+    // demo: nothing to click
     return;
   }
   if (state.mode === 'camera') {
@@ -2636,11 +2946,15 @@ async function startAR(requested) {
   rawBtn.disabled = true;
   onceKeys.clear();
   const setup = chosenSetup();
-  // Corner setup uses the camera too: for scanning the colour cards after calibration.
+  state.build = chosenBuild();
+  // Corner setup only needs the camera for the colour cards. Not asking for it otherwise
+  // means one permission less, and the camera binding was the riskiest part on the ML2.
+  if (setup === 'corners' && state.build !== 'cards') requested = requested.filter((f) => f !== 'camera-access');
   debugPanel.visible = CONFIG.debug && setup !== 'corners';
-  cardDebugPanel.visible = CONFIG.debug && setup === 'corners';
+  cardDebugPanel.visible = CONFIG.debug && setup === 'corners' && state.build === 'cards';
+  diorama.visible = state.build === 'demo';
   setPageStatus('Starting AR…');
-  info('Requesting immersive-ar session', { optionalFeatures: requested });
+  info('Requesting immersive-ar session', { setup, build: state.build, optionalFeatures: requested });
 
   let session;
   try {
@@ -2806,13 +3120,32 @@ window.addEventListener('resize', () => {
 
 // ?preview=1 — look at the diorama on a normal screen (no headset, no WebXR), on a
 // virtual 1.6 x 0.8 m table. Handy for checking models and layout from the laptop.
+// ?preview=1&build=manual — try manual mode there: the mouse is the controller ray,
+// click = trigger, Backspace = bumper (short press). The camera stays still.
+const preview = { active: false, aim: null, ndc: null };
+const _ray = new THREE.Raycaster();
+
+function previewAim() {
+  if (!preview.ndc) return null;
+  _ray.setFromCamera(preview.ndc, camera);
+  const { origin, direction } = _ray.ray;
+  const t = direction.y < -1e-3 ? (tableAnchor.position.y - origin.y) / direction.y : -1;
+  const point = t > 0 ? origin.clone().addScaledVector(direction, t) : null;
+  return { origin: origin.clone(), dir: direction.clone(), point, how: 'mouse' };
+}
+
 function startPreview() {
-  info('Preview mode: diorama on a virtual 1.6 x 0.8 m table');
+  const manualPreview = params.get('build') === 'manual';
+  state.build = manualPreview ? 'manual' : 'demo';
+  info(manualPreview
+    ? 'Preview mode: manual mode on a virtual 1.6 x 0.8 m table (mouse = controller, click = trigger, Backspace = bumper)'
+    : 'Preview mode: diorama on a virtual 1.6 x 0.8 m table');
   document.body.classList.add('preview');
   Object.assign(renderer.domElement.style, { display: 'block', position: 'fixed', inset: '0', zIndex: '0' });
   renderer.setClearColor(0x20252c, 1);
   tableAnchor.visible = true;
   outline.visible = true;
+  diorama.visible = !manualPreview;
   updateOutline(1.6, 0.8, 0);
   const table = new THREE.Mesh(
     new THREE.BoxGeometry(1.6, 0.04, 0.8),
@@ -2820,13 +3153,45 @@ function startPreview() {
   );
   table.position.y = -0.02;
   tableAnchor.add(table);
-  const angle = params.has('angle') ? parseFloat(params.get('angle')) : null; // fixed view, degrees
-  const dist = parseFloat(params.get('dist') ?? '0.9');                       // camera distance, m
-  const height = parseFloat(params.get('height') ?? '0.55');
-  renderer.setAnimationLoop((time) => {
+  const angle = params.has('angle') ? parseFloat(params.get('angle')) : manualPreview ? 0 : null; // fixed view, degrees
+  const dist = parseFloat(params.get('dist') ?? (manualPreview ? '1.0' : '0.9'));                 // camera distance, m
+  const height = parseFloat(params.get('height') ?? (manualPreview ? '0.85' : '0.55'));
+  const placeCamera = (time) => {
     const a = angle !== null ? THREE.MathUtils.degToRad(angle) : time * 0.0002;
     camera.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
-    camera.lookAt(0, 0.05, 0);
+    camera.lookAt(0, manualPreview ? 0 : 0.05, 0);
+    camera.updateMatrixWorld();
+  };
+
+  if (manualPreview) {
+    // As if the 4 corners were just placed around the virtual table.
+    placeCamera(0);
+    state.table = { pos: tableAnchor.position.clone(), yaw: 0, length: 1.6, width: 0.8, radius: 0 };
+    state.locked = true;
+    calib.done = true;
+    colourCal.done = true;
+    calibGroup.visible = true;
+    preview.active = true;
+    const canvas = renderer.domElement;
+    canvas.addEventListener('pointermove', (e) => {
+      preview.ndc = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    });
+    canvas.addEventListener('pointerleave', () => { preview.ndc = null; });
+    canvas.addEventListener('click', () => manualTrigger(null));
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Backspace' || e.target !== document.body) return;
+      e.preventDefault();
+      manualBack();
+    });
+    enterManual();
+  }
+
+  renderer.setAnimationLoop((time) => {
+    placeCamera(time);
+    if (manualPreview) {
+      preview.aim = previewAim();
+      try { manualStep(time); } catch (err) { once('preview-err', 'error', 'Manual preview failed', errText(err)); }
+    }
     animateDiorama(time);
     renderer.render(scene, camera);
   });

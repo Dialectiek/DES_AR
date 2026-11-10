@@ -57,6 +57,22 @@ export class EnergySystem {
     return added;
   }
 
+  // Manual mode: one asset of the given type (key in config.assets) at (x, z),
+  // table-local metres. colour only sets the ring/label colour (null = white).
+  // Undone like a scan. Returns the new node.
+  addNode(type, x, z, colour = null) {
+    if (!this.config.assets?.[type]) throw new Error(`unknown asset "${type}"`);
+    const node = { id: this.nextId++, colour, type, x, z };
+    this.nodes.push(node);
+    this.history.push({ kind: 'add', nodeIds: [node.id] });
+    return node;
+  }
+
+  // Kind of the step undo() would undo next: 'add' | 'link' | 'unlink' | null.
+  lastStepKind() {
+    return this.history.at(-1)?.kind ?? null;
+  }
+
   linksBetween(idA, idB) {
     return this.links.filter((l) => (l.from === idA && l.to === idB) || (l.from === idB && l.to === idA));
   }
@@ -118,4 +134,11 @@ export class EnergySystem {
     this.links = [];
     this.history = [];
   }
+}
+
+// The card colour that components.json maps to this asset type, or null. Manual assets
+// use it for their ring and label, so an asset looks the same in both modes.
+export function colourForType(config, type) {
+  for (const [colour, t] of Object.entries(config?.cards ?? {})) if (t === type) return colour;
+  return null;
 }

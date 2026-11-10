@@ -21,9 +21,17 @@
   <main class="panel">
     <h1>Table Cube</h1>
     <p class="lead">
-      Finds the white table, then scans the colour cards on it: each card becomes an
-      energy-system asset (mapping in <code>assets/components.json</code>). Click two assets to connect them.
+      Point at the 4 corners of the table, then build an energy system on it: place assets
+      by hand or with colour cards (<code>assets/components.json</code>), then click two assets to connect them.
     </p>
+
+    <fieldset id="build-picker">
+      <legend>What goes on the table</legend>
+      <label><input type="radio" name="build" value="manual" checked> Manual: pick assets from a palette and place them, then connect them</label>
+      <label><input type="radio" name="build" value="cards"> Colour cards: lay cards on the table and tap them (needs the camera feed)</label>
+      <label><input type="radio" name="build" value="demo"> Demo scene: house, office, car and grid with energy flows</label>
+      <p id="build-note" class="note" hidden>Camera table detection always shows the demo scene.</p>
+    </fieldset>
 
     <fieldset id="setup-picker">
       <legend>Table setup</legend>
@@ -60,13 +68,25 @@
         <li><b>Bumper</b> — undo the last corner</li>
         <li>No surface found for corner 1? Touch the corner with the controller tip and press the trigger.</li>
       </ul>
-      <p><b>After corner setup: building the energy system</b></p>
+      <p><b>Manual (after corner setup)</b></p>
       <ul>
-        <li><b>Trigger, aiming at the table</b> — scan: every new colour card gets its asset</li>
-        <li><b>Trigger on an asset, then on another</b> — connect them (again = disconnect)</li>
-        <li><b>Bumper</b> — undo the last scan or connection</li>
+        <li><b>1. Place:</b> a palette lies along the table edge nearest to you. <b>Trigger on a tile</b> picks
+          that asset; <b>trigger on the table</b> places it (as many as you like). <b>Bumper</b> = undo the last asset.</li>
+        <li><b>Trigger on "Done placing"</b> — start connecting</li>
+        <li><b>2. Connect:</b> <b>trigger on an asset, then on another</b> connects them (again = disconnect).
+          <b>Bumper</b> = undo the last connection; with none left it goes back to placing.</li>
+        <li><b>Trigger on "Done connecting"</b> — finished: the flows keep running. <b>Bumper</b> = back to connecting.</li>
         <li><b>Hold the bumper (1.5 s)</b> — calibrate the table again (clears everything)</li>
       </ul>
+      <p><b>Colour cards (after corner setup)</b></p>
+      <ul>
+        <li><b>Colour squares</b> — lay one card in each square on the table, press the trigger</li>
+        <li><b>Trigger on a card</b> — adds the asset for its colour</li>
+        <li><b>Trigger on an asset, then on another</b> — connect them (again = disconnect)</li>
+        <li><b>Bumper</b> — undo the last card or connection</li>
+        <li><b>Hold the bumper (1.5 s)</b> — calibrate the table again (clears everything)</li>
+      </ul>
+      <p><b>Demo scene</b> — the diorama appears after corner setup; <b>hold the bumper</b> to calibrate again.</p>
       <p><b>Camera detection</b></p>
       <ul>
         <li><b>Trigger / pinch</b> — detect the table again (or place the cube in fallback mode)</li>
@@ -81,7 +101,9 @@
         <li><code>?debug=1</code> — start with the camera debug view visible (corner setup: shows the card colours of the last scan)</li>
         <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
+        <li><code>?build=manual</code> / <code>cards</code> / <code>demo</code> — choose what goes on the table</li>
         <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
+        <li><code>?preview=1</code> — demo diorama on a virtual table, no headset; <code>?preview=1&amp;build=manual</code> — try manual mode with the mouse (click = trigger, Backspace = bumper)</li>
         <li><code>?corner=0.1</code> — corner radius of the outline in metres (detect: default estimated, corners: default 0)</li>
         <li><code>?white=180</code> — fixed brightness threshold for "white" (default: automatic)</li>
         <li><code>?aa=0</code> — turn antialiasing off</li>

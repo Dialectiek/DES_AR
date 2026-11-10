@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLink, EnergySystem } from '../system.js';
+import { resolveLink, EnergySystem, colourForType } from '../system.js';
 
 const assets = {
   turbine: { label: 'Turbine', produces: ['electricity'], consumes: [], power_kW: 5 },
@@ -88,4 +88,55 @@ test('undo walks back links, unlinks and scans', () => {
   assert.equal(sys.undo(), 'removed 5 assets');
   assert.equal(sys.nodes.length, 0);
   assert.equal(sys.undo(), null);
+});
+
+// Manual mode: assets added one by one by type, no cards.
+test('addNode adds one asset of a type, undone one at a time', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  const c = sys.addNode('car', -0.3, 0.1, 'orange');
+  assert.deepEqual(t, { id: t.id, colour: null, type: 'turbine', x: 0.1, z: -0.2 });
+  assert.equal(c.colour, 'orange');
+  assert.equal(sys.labelOf(t), 'Turbine');
+  assert.notEqual(t.id, c.id);
+  assert.equal(sys.lastStepKind(), 'add');
+  assert.equal(sys.undo(), 'removed 1 asset');
+  assert.deepEqual(sys.nodes.map((n) => n.type), ['turbine']);
+});
+
+test('addNode refuses unknown asset types', () => {
+  const sys = new EnergySystem(config);
+  assert.throws(() => sys.addNode('rocket', 0, 0), /unknown asset "rocket"/);
+  assert.equal(sys.nodes.length, 0);
+  assert.equal(sys.lastStepKind(), null);
+});
+
+test('manual assets connect like scanned ones; lastStepKind follows the history', () => {
+  const sys = new EnergySystem(config);
+  const k = sys.addNode('chp', 0, 0);
+  const h = sys.addNode('house', 0.3, 0);
+  const c = sys.addNode('car', -0.3, 0);
+  let r = sys.connect(h.id, k.id);
+  assert.equal(r.action, 'added');
+  assert.deepEqual(r.links.map((l) => [l.carrier, l.from, l.to]), [
+    ['electricity', k.id, h.id],
+    ['heat', k.id, h.id],
+  ]);
+  assert.equal(sys.lastStepKind(), 'link');
+  r = sys.connect(c.id, h.id);
+  assert.equal(r.action, 'refused');
+  assert.match(r.reason, /Car and House can't be connected/);
+  assert.equal(sys.lastStepKind(), 'link'); // a refusal is not a step
+  sys.connect(k.id, h.id);
+  assert.equal(sys.lastStepKind(), 'unlink');
+  sys.undo();
+  sys.undo();
+  assert.equal(sys.lastStepKind(), 'add');
+  assert.equal(sys.links.length, 0);
+});
+
+test('colourForType: the card colour mapped to an asset, or null', () => {
+  assert.equal(colourForType(config, 'car'), 'orange');
+  assert.equal(colourForType(config, 'battery'), null);
+  assert.equal(colourForType({}, 'car'), null);
 });
