@@ -114,7 +114,7 @@ const placeholderGeo = new THREE.BoxGeometry(PLACEHOLDER_SIZE, PLACEHOLDER_SIZE,
 const placeholderEdges = new THREE.EdgesGeometry(placeholderGeo);
 
 // node: { id, colour, type, x, z } from EnergySystem. Returns a THREE.Group with
-// userData { nodeId, ring, ringMat, pickCentre (local), pickRadius, footprintRadius }.
+// userData { nodeId, ring, ringMat, pickCentre (local), pickRadius, footprintRadius, ringRadius, height }.
 // footprintRadius = half the model's width: connections are routed around that square.
 export function makeAssetObject(node, config, templates) {
   const def = node.type ? config.assets[node.type] : null;
@@ -155,6 +155,8 @@ export function makeAssetObject(node, config, templates) {
     pickCentre: new THREE.Vector3(0, height / 2, 0),
     pickRadius: Math.max(r, height / 2) * 1.1,
     footprintRadius: footprint / 2,
+    ringRadius: r,
+    height,
   };
   return group;
 }

@@ -42,12 +42,14 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 | File | Role |
 |---|---|
 | `main.js` | Everything WebXR: session, table calibration, input, modes, HUD, logging, preview. Large; grep for the `// ----` section headers. |
-| `system.js` | Energy-system model (nodes, links, undo). Pure, tested. |
+| `system.js` | Energy-system model (nodes, links with Illuminator ports, undo). Pure, tested. |
+| `schema.js` / `ports-view.js` | Illuminator model schemas: ports, port choice, arrow layout, panel rows. Pure, tested / floor arrows per input and output, and the asset info panel. |
 | `manual.js` / `palette.js` | Manual mode: pure layout logic (tested) / palette and ghost 3D. |
 | `cards.js` | Colour-card detection. Pure, tested. |
 | `assets.js` / `links.js` | 3D objects for nodes / adapter from the energy system's links to `cables.js` (manual and cards modes). |
 | `router.js` / `cables.js` | Connection routing: right angles on a grid, around the assets, bridges where links cross. Pure, tested / draws the routed cables and tubes with flow dots, in every mode. |
 | `diorama.js` / `asset-labels.js` | Diorama scene loader and flows / floating asset info panels. |
+| `tools/illuminator-schemas.cjs` | Reads the Illuminator docs and writes `assets/illuminator-schemas.json` (refresh command in its header). |
 | `tools/model-builders.js` | Procedural source of the GLBs in `assets/models/`; export with `tools/export-models.html` (`node devserver.mjs 8001 --allow-save`). Source geometry a builder reads (the EWI tower STL) is in `tools/sources/`. |
 
 Data in `assets/`:
@@ -55,6 +57,9 @@ Data in `assets/`:
   `paletteGroups` + each asset's `group` split the manual palette into pages.
 - `models/illuminator/`: one GLB per Illuminator component type (and variants), connection
   points (`port_*`) all at 1.0 m. Their builder source is not in the repo.
+- `illuminator-schemas.json`: every Illuminator model's parameters, inputs, outputs and
+  states, generated from the docs. An asset's `illuminator` field in `components.json` points
+  into it. Don't edit it by hand; regenerate it.
 - `library.json` + `scenes/*.json`: models and scenes for the **diorama**. Two separate
   configs for now; keep both in mind when adding an asset.
 

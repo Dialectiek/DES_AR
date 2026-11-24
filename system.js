@@ -3,6 +3,14 @@
 //
 // Link types follow from the assets: a link carries 'electricity' (or 'heat') when one
 // side produces it and the other consumes it; the producer is the source of the flow.
+//
+// Illuminator ports (schema.js): an asset with an "illuminator" model takes at most as many
+// connections as its model has inputs and outputs. Every link then records which output of
+// its source (fromPort) and which input of its target (toPort) it uses; those names become
+// the `connections` of the Illuminator scenario YAML. Each node also keeps its own copy of
+// the model's parameters (node.params), starting from the schema's defaults.
+
+import { indexSchemas, modelOf, portsOfModel, defaultParameters, pickPorts } from './schema.js';
 
 // a, b: asset definitions from components.json ({ produces, consumes }) or null.
 // Returns [{ carrier, forward }]: forward = true means the flow goes a → b.
@@ -21,17 +29,65 @@ export function resolveLink(a, b) {
 }
 
 export class EnergySystem {
-  // config: the parsed components.json
-  constructor(config) {
+  // config: the parsed components.json; schemas: the parsed illuminator-schemas.json
+  // (optional: without it, assets have no ports and connect as before).
+  constructor(config, schemas = null) {
     this.config = config;
-    this.nodes = [];   // { id, colour, type (asset key or null), x, z }
-    this.links = [];   // { id, carrier, from, to, power }
+    this.schemas = indexSchemas(schemas);
+    this.nodes = [];   // { id, colour, type (asset key or null), x, z, params? }
+    this.links = [];   // { id, carrier, from, to, power, fromPort, toPort }
     this.history = []; // undo stack
     this.nextId = 1;
   }
 
   assetOf(node) {
     return node.type ? this.config.assets[node.type] ?? null : null;
+  }
+
+  // The Illuminator schema entry of a node's asset, or null.
+  modelOf(node) {
+    return modelOf(this.schemas, this.assetOf(node));
+  }
+
+  // { model, category, inputs, outputs, dynamic } of a node, or null (no Illuminator model).
+  portsOf(node) {
+    return portsOfModel(this.modelOf(node));
+  }
+
+  // Which ports of a node are connected, and to what:
+  //   { model, category, dynamic, inputs: [{ name, link }], outputs: [{ name, link }],
+  //     open: number of unconnected ports, extraIn / extraOut: links on a dynamic model }
+  // link = the link using that port, or null. null for a node without a model.
+  portStatus(node) {
+    const ports = this.portsOf(node);
+    if (!ports) return null;
+    const incoming = this.links.filter((l) => l.to === node.id);
+    const outgoing = this.links.filter((l) => l.from === node.id);
+    const inputs = ports.inputs.map((name) => ({ name, link: incoming.find((l) => l.toPort === name) ?? null }));
+    const outputs = ports.outputs.map((name) => ({ name, link: outgoing.find((l) => l.fromPort === name) ?? null }));
+    const open = ports.dynamic ? 0 : [...inputs, ...outputs].filter((p) => !p.link).length;
+    return {
+      model: ports.model, category: ports.category, dynamic: ports.dynamic, inputs, outputs, open,
+      extraIn: ports.dynamic ? incoming : [], extraOut: ports.dynamic ? outgoing : [],
+    };
+  }
+
+  // Unconnected ports over the whole system: [{ node, side: 'in' | 'out', name }].
+  openPorts() {
+    const out = [];
+    for (const node of this.nodes) {
+      const st = this.portStatus(node);
+      if (!st || st.dynamic) continue;
+      for (const p of st.inputs) if (!p.link) out.push({ node, side: 'in', name: p.name });
+      for (const p of st.outputs) if (!p.link) out.push({ node, side: 'out', name: p.name });
+    }
+    return out;
+  }
+
+  // A new node's own copy of its model's parameters (none without a model).
+  paramsFor(type) {
+    const model = modelOf(this.schemas, this.config.assets?.[type]);
+    return model ? defaultParameters(model) : null;
   }
 
   labelOf(node) {
@@ -51,6 +107,10 @@ export class EnergySystem {
       x: c.x,
       z: c.z,
     }));
+    for (const n of added) {
+      const params = n.type ? this.paramsFor(n.type) : null;
+      if (params) n.params = params;
+    }
     if (!added.length) return added;
     this.nodes.push(...added);
     this.history.push({ kind: 'add', nodeIds: added.map((n) => n.id) });
@@ -63,6 +123,8 @@ export class EnergySystem {
   addNode(type, x, z, colour = null) {
     if (!this.config.assets?.[type]) throw new Error(`unknown asset "${type}"`);
     const node = { id: this.nextId++, colour, type, x, z };
+    const params = this.paramsFor(type);
+    if (params) node.params = params;
     this.nodes.push(node);
     this.history.push({ kind: 'add', nodeIds: [node.id] });
     return node;
@@ -98,11 +160,37 @@ export class EnergySystem {
     if (!options.length) {
       return { action: 'refused', links: [], reason: `${assetA.label} and ${assetB.label} can't be connected` };
     }
-    const added = options.map(({ carrier, forward }) => {
-      const from = forward ? a : b;
-      const to = forward ? b : a;
-      return { id: this.nextId++, carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1 };
-    });
+    // Give every link a free output on its source and a free input on its target. When a
+    // carrier can flow both ways (e.g. two batteries), the other way is tried as well.
+    const usedOut = new Map(), usedIn = new Map(); // node id → port names taken (incl. this call)
+    const taken = (map, id, key) => {
+      if (!map.has(id)) map.set(id, this.links.filter((l) => l[key === 'out' ? 'from' : 'to'] === id).map((l) => (key === 'out' ? l.fromPort : l.toPort)));
+      return map.get(id);
+    };
+    const added = [];
+    let lastFail = null;
+    for (const { carrier, forward } of options) {
+      const both = [assetA, assetB].every((d) => (d.produces || []).includes(carrier) && (d.consumes || []).includes(carrier));
+      const tries = both ? [forward, !forward] : [forward];
+      let made = null;
+      for (const fwd of tries) {
+        const from = fwd ? a : b, to = fwd ? b : a;
+        const pick = pickPorts(this.portsOf(from), this.portsOf(to), taken(usedOut, from.id, 'out'), taken(usedIn, to.id, 'in'), carrier);
+        if (!pick.ok) {
+          lastFail = `${this.labelOf(pick.side === 'from' ? from : to)}: ${pick.reason}`;
+          continue;
+        }
+        if (pick.fromPort) taken(usedOut, from.id, 'out').push(pick.fromPort);
+        if (pick.toPort) taken(usedIn, to.id, 'in').push(pick.toPort);
+        made = {
+          id: this.nextId++, carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1,
+          fromPort: pick.fromPort, toPort: pick.toPort,
+        };
+        break;
+      }
+      if (made) added.push(made);
+    }
+    if (!added.length) return { action: 'refused', links: [], reason: lastFail };
     this.links.push(...added);
     this.history.push({ kind: 'link', linkIds: added.map((l) => l.id) });
     return { action: 'added', links: added };

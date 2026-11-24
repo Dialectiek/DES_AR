@@ -1,0 +1,2165 @@
+{
+  "source": {
+    "repo": "illuminator-team/website",
+    "ref": "gh-pages",
+    "commit": "d74a6bdaa29a3a88ae751b6c78542f5a221906ac",
+    "committedAt": "2026-03-06T16:09:17Z",
+    "deployMessage": "deploy: ace29acedc59567386abd536fdb10e586f8cd70a",
+    "entry": "references/models.html"
+  },
+  "fetchedAt": "2026-11-24T11:16:38.248Z",
+  "count": 29,
+  "models": {
+    "illuminator.models.Agents.generators.generation_company_agent_v3.GenerationCompanyAgent": {
+      "name": "GenerationCompanyAgent",
+      "path": "illuminator.models.Agents.generators.generation_company_agent_v3.GenerationCompanyAgent",
+      "categories": [
+        "Agent"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Agents/Agents.html#illuminator.models.Agents.generators.generation_company_agent_v3.GenerationCompanyAgent"
+      ],
+      "summary": "Generation Company Agent that participates in electricity markets by submitting bids.",
+      "keysFrom": "docs",
+      "parameters": {
+        "automated_bids": {
+          "default": true,
+          "type": "bool",
+          "description": "Flag to determine if bids are generated automatically based on marginal costs"
+        },
+        "bids_manual": {
+          "default": null,
+          "type": "pd.DataFrame, optional",
+          "description": "Manual bid data if automated_bids is False"
+        },
+        "company_name": {
+          "default": "no name",
+          "type": "str",
+          "description": "Name identifier for the generation company"
+        }
+      },
+      "inputs": {
+        "portfolio": {
+          "default": {},
+          "type": "dict",
+          "description": "Portfolio of power plants with their characteristics (capacity, cost, availability)"
+        }
+      },
+      "outputs": {},
+      "states": {
+        "bids": {
+          "default": {},
+          "type": "dict",
+          "description": "Current market bids for each power plant"
+        },
+        "profit": {
+          "default": 0,
+          "type": "float",
+          "description": "Cumulative profit from market operations"
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Agents.justice_agent.justice_agent_v3.JusticeAgent": {
+      "name": "JusticeAgent",
+      "path": "illuminator.models.Agents.justice_agent.justice_agent_v3.JusticeAgent",
+      "categories": [
+        "Agent"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Agents/Agents.html#illuminator.models.Agents.justice_agent.justice_agent_v3.JusticeAgent"
+      ],
+      "summary": "Justice evaluator agent that calculates justice metrics for electricity market participants.",
+      "keysFrom": "docs",
+      "parameters": {
+        "justice_step": {
+          "default": null,
+          "type": "int",
+          "description": "Time step at which to calculate final justice scores"
+        },
+        "results_dir": {
+          "default": "justice_agent_results",
+          "type": "str, optional",
+          "description": "Directory to save justice metric results, defaults to 'justice_agent_results'"
+        },
+        "social_parameters": {
+          "default": null,
+          "type": "dict",
+          "description": "Dictionary containing social parameter weights (a,b,c,d) for each company"
+        }
+      },
+      "inputs": {
+        "demand": {
+          "default": 0,
+          "type": "float",
+          "description": "Total market demand"
+        },
+        "market_results": {
+          "default": null,
+          "type": "pd.DataFrame",
+          "description": "Market clearing results with company capacities, revenues, costs and profits"
+        },
+        "marketclearingprice": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "market_clearing_price": {
+          "default": null,
+          "type": "float",
+          "description": "Market clearing price",
+          "documentedOnly": true
+        }
+      },
+      "outputs": {},
+      "states": {
+        "alpha_scores": {
+          "default": {},
+          "type": "dict",
+          "description": "Social parameter weights for each company"
+        },
+        "beta_scores": {
+          "default": {},
+          "type": "dict",
+          "description": "Cumulative market shares for each company"
+        },
+        "justice_score": {
+          "default": null,
+          "type": "float",
+          "description": "Overall justice metric"
+        }
+      },
+      "notes": [
+        "inputs: 'market_clearing_price' is in the docstring but not in the code's inputs"
+      ]
+    },
+    "illuminator.models.Agents.operators.operator_v3.Operator_Market": {
+      "name": "Operator_Market",
+      "path": "illuminator.models.Agents.operators.operator_v3.Operator_Market",
+      "categories": [
+        "Agent"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Agents/Agents.html#illuminator.models.Agents.operators.operator_v3.Operator_Market"
+      ],
+      "summary": "Market operator agent responsible for clearing the electricity market.",
+      "keysFrom": "docs",
+      "parameters": {
+        "results_dir": {
+          "default": "operator_results",
+          "type": "str",
+          "description": "Directory to save market results and visualizations"
+        }
+      },
+      "inputs": {
+        "bids": {
+          "default": {},
+          "type": "dict or list[dict]",
+          "description": "Bid information from generators containing prices and capacities"
+        }
+      },
+      "outputs": {},
+      "states": {
+        "demand": {
+          "default": null,
+          "type": "float",
+          "description": "Total market demand in MW"
+        },
+        "market_clearing_price": {
+          "default": 0,
+          "type": "float",
+          "description": "Cleared market price in €/MWh"
+        },
+        "market_results_summary": {
+          "default": null,
+          "type": "dict",
+          "description": "Summary of market results including revenues and profits"
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Collector.collector_v3.Collector": {
+      "name": "Collector",
+      "path": "illuminator.models.Collector.collector_v3.Collector",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Collector.collector_v3.Collector"
+      ],
+      "summary": "A model for writing time series data to CSV files.",
+      "keysFrom": "docs",
+      "parameters": {
+        "date_format": {
+          "default": null,
+          "type": "str",
+          "description": "Format of the date/time column in the CSV file",
+          "documentedOnly": true
+        },
+        "delimiter": {
+          "default": null,
+          "type": "str",
+          "description": "Column delimiter character in the CSV file (default ',')",
+          "documentedOnly": true
+        },
+        "datafile": {
+          "default": null,
+          "type": "str / list",
+          "description": "[list of] Path to the CSV file to read from",
+          "documentedOnly": true
+        },
+        "send_row": {
+          "default": null,
+          "type": "bool",
+          "description": "If True, sends the entire row as a dictionary under the key 'row'. If False, sends individual columns as separate states.",
+          "documentedOnly": true
+        }
+      },
+      "inputs": {
+        "file_index": {
+          "default": null,
+          "type": "int (optional)",
+          "description": "If multiple files are provided, this input selects which file to read from.",
+          "documentedOnly": true
+        }
+      },
+      "outputs": {},
+      "states": {
+        "next_row": {
+          "default": null,
+          "type": "dict (optional, if send_row is True)",
+          "description": "The next row of data read from the CSV file.",
+          "documentedOnly": true
+        },
+        "<column_name>": {
+          "default": null,
+          "type": "float (for each column in the CSV file, if send_row is False)",
+          "description": "The value of each column in the current row.",
+          "documentedOnly": true
+        }
+      },
+      "notes": [
+        "no class-level parameters/inputs/outputs/states (built dynamically); schema taken from the docstring only"
+      ]
+    },
+    "illuminator.models.CSV_reader_v3.CSV": {
+      "name": "CSV",
+      "path": "illuminator.models.CSV_reader_v3.CSV",
+      "categories": [
+        "Component",
+        "Data"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.CSV_reader_v3.CSV",
+        "https://illuminator-team.github.io/website/references/Data/Data.html#illuminator.models.CSV_reader_v3.CSV"
+      ],
+      "summary": "A model for reading time series data from CSV files.",
+      "keysFrom": "docs",
+      "parameters": {
+        "date_format": {
+          "default": null,
+          "type": "str",
+          "description": "Format of the date/time column in the CSV file",
+          "documentedOnly": true
+        },
+        "delimiter": {
+          "default": null,
+          "type": "str",
+          "description": "Column delimiter character in the CSV file (default ',')",
+          "documentedOnly": true
+        },
+        "datafile": {
+          "default": null,
+          "type": "str / list",
+          "description": "[list of] Path to the CSV file to read from",
+          "documentedOnly": true
+        },
+        "send_row": {
+          "default": null,
+          "type": "bool",
+          "description": "If True, sends the entire row as a dictionary under the key 'row'. If False, sends individual columns as separate states.",
+          "documentedOnly": true
+        }
+      },
+      "inputs": {
+        "file_index": {
+          "default": null,
+          "type": "int (optional)",
+          "description": "If multiple files are provided, this input selects which file to read from.",
+          "documentedOnly": true
+        }
+      },
+      "outputs": {},
+      "states": {
+        "next_row": {
+          "default": null,
+          "type": "dict (optional, if send_row is True)",
+          "description": "The next row of data read from the CSV file.",
+          "documentedOnly": true
+        },
+        "<column_name>": {
+          "default": null,
+          "type": "float (for each column in the CSV file, if send_row is False)",
+          "description": "The value of each column in the current row.",
+          "documentedOnly": true
+        }
+      },
+      "notes": [
+        "no class-level parameters/inputs/outputs/states (built dynamically); schema taken from the docstring only"
+      ]
+    },
+    "illuminator.models.Gridconnection.grid_connection_v3.GridConnection": {
+      "name": "GridConnection",
+      "path": "illuminator.models.Gridconnection.grid_connection_v3.GridConnection",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Gridconnection.grid_connection_v3.GridConnection"
+      ],
+      "summary": "Grid connection model that monitors power flows and sets warning flags for grid congestion.",
+      "keysFrom": "docs",
+      "parameters": {
+        "connection_capacity": {
+          "default": null,
+          "type": "float",
+          "description": "Maximum power capacity of the grid connection (kW)"
+        },
+        "critical_limit": {
+          "default": null,
+          "type": "float",
+          "description": "Threshold for critical flag as fraction of connection capacity (e.g. 0.9 = 90%)"
+        },
+        "tolerance_limit": {
+          "default": null,
+          "type": "float",
+          "description": "Threshold for warning flag as fraction of connection capacity (e.g. 0.8 = 80%)"
+        }
+      },
+      "inputs": {
+        "dump": {
+          "default": 0,
+          "type": "float",
+          "description": "Power flow through grid connection (kW, negative for export)"
+        }
+      },
+      "outputs": {},
+      "states": {
+        "flag_critical": {
+          "default": null,
+          "type": "int",
+          "description": "Flag indicating critical limit exceeded (1) or not (0)"
+        },
+        "flag_warning": {
+          "default": null,
+          "type": "int",
+          "description": "Flag indicating warning limit exceeded (1) or not (0)"
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.PV.pv_model_v3.PV": {
+      "name": "PV",
+      "path": "illuminator.models.PV.pv_model_v3.PV",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.PV.pv_model_v3.PV"
+      ],
+      "summary": "A PV model that calculates power generation based on environmental conditions.",
+      "keysFrom": "docs",
+      "parameters": {
+        "G_NOCT": {
+          "default": 0,
+          "type": "float",
+          "description": "Irradiance at NOCT conditions in W/m²"
+        },
+        "NOCT": {
+          "default": 0,
+          "type": "float",
+          "description": "Nominal Operating Cell Temperature in °C"
+        },
+        "P_STC": {
+          "default": 0,
+          "type": "float",
+          "description": "Power output under standard test conditions in W"
+        },
+        "cap": {
+          "default": 0,
+          "type": "float",
+          "description": "Installed capacity in kW"
+        },
+        "m_area": {
+          "default": 0,
+          "type": "float",
+          "description": "Module area of the PV panel in m²"
+        },
+        "m_az": {
+          "default": 0,
+          "type": "float",
+          "description": "Module azimuth angle in degrees"
+        },
+        "m_efficiency_stc": {
+          "default": 0,
+          "type": "float",
+          "description": "Module efficiency under standard test conditions"
+        },
+        "m_tilt": {
+          "default": 0,
+          "type": "float",
+          "description": "Module tilt angle in degrees"
+        },
+        "output_type": {
+          "default": "power",
+          "type": "str",
+          "description": "Output type ('power' or 'energy')"
+        },
+        "peak_power": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "sim_start": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputs": {
+        "Az": {
+          "default": 0,
+          "type": "float",
+          "description": "Sun azimuth angle in degrees"
+        },
+        "FF": {
+          "default": 0,
+          "type": "float",
+          "description": "Wind speed in m/s"
+        },
+        "G_Bn": {
+          "default": 0,
+          "type": "float",
+          "description": "Direct normal irradiance in W/m²"
+        },
+        "G_Dh": {
+          "default": 0,
+          "type": "float",
+          "description": "Diffuse horizontal irradiance in W/m²"
+        },
+        "G_Gh": {
+          "default": 0,
+          "type": "float",
+          "description": "Global horizontal irradiance in W/m²"
+        },
+        "Ta": {
+          "default": 0,
+          "type": "float",
+          "description": "Ambient temperature in °C"
+        },
+        "hs": {
+          "default": 0,
+          "type": "float",
+          "description": "Solar elevation angle in degrees"
+        }
+      },
+      "outputs": {
+        "g_aoi": {
+          "default": 0,
+          "type": "float",
+          "description": "Total irradiance considering angle of incidence in W/m²"
+        },
+        "pv_gen": {
+          "default": 0,
+          "type": "float",
+          "description": "PV generation in kW or kWh"
+        },
+        "total_irr": {
+          "default": 0,
+          "type": "float",
+          "description": "Total irradiance on tilted surface in W/m²"
+        }
+      },
+      "states": {
+        "pv_gen": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Wind.wind_v3.Wind": {
+      "name": "Wind",
+      "path": "illuminator.models.Wind.wind_v3.Wind",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Wind.wind_v3.Wind"
+      ],
+      "summary": "A wind turbine model that calculates power generation based on wind speed.",
+      "keysFrom": "docs",
+      "parameters": {
+        "cp": {
+          "default": 0.4,
+          "type": "float",
+          "description": "Coefficient of performance (Betz limit max 0.59)"
+        },
+        "diameter": {
+          "default": 30,
+          "type": "float",
+          "description": "Rotor diameter (m)"
+        },
+        "output_type": {
+          "default": "power",
+          "type": "str",
+          "description": "Output type ('power' or 'energy')"
+        },
+        "p_rated": {
+          "default": 500,
+          "type": "float",
+          "description": "Rated power output (kW) at rated wind speed"
+        },
+        "u_cutin": {
+          "default": 1,
+          "type": "float",
+          "description": "Cut-in wind speed (m/s)"
+        },
+        "u_cutout": {
+          "default": 1000,
+          "type": "float",
+          "description": "Cut-out wind speed (m/s)"
+        },
+        "u_rated": {
+          "default": 100,
+          "type": "float",
+          "description": "Rated wind speed (m/s)"
+        }
+      },
+      "inputs": {
+        "u": {
+          "default": 0,
+          "type": "float",
+          "description": "Wind speed at hub height (m/s)"
+        }
+      },
+      "outputs": {
+        "u": {
+          "default": 0,
+          "type": "float",
+          "description": "Adjusted wind speed at 25m height (m/s)"
+        },
+        "wind_gen": {
+          "default": 0,
+          "type": "float",
+          "description": "Wind generation in kW or kWh"
+        }
+      },
+      "states": {
+        "u25": {
+          "default": 0,
+          "type": "float",
+          "description": "Wind speed at 25m height (m/s)"
+        },
+        "u60": {
+          "default": 10,
+          "type": "float",
+          "description": "Wind speed at 60m height (m/s)"
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Load.load_v3.Load": {
+      "name": "Load",
+      "path": "illuminator.models.Load.load_v3.Load",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Load.load_v3.Load"
+      ],
+      "summary": "Calculates total load demand based on number of houses and input load.",
+      "keysFrom": "docs",
+      "parameters": {
+        "houses": {
+          "default": 1,
+          "type": "int",
+          "description": "Number of houses that determine the total load demand"
+        },
+        "input_type": {
+          "default": "energy",
+          "type": "",
+          "description": ""
+        },
+        "output_type": {
+          "default": "power",
+          "type": "str",
+          "description": "Type of output for consumption calculation ('energy' or 'power')"
+        }
+      },
+      "inputs": {
+        "load": {
+          "default": 0,
+          "type": "float",
+          "description": "Incoming energy or power demand per house in kW or kWh"
+        }
+      },
+      "outputs": {
+        "consumption": {
+          "default": 0,
+          "type": "float",
+          "description": "Current energy or power consumption based on the number of houses and input load (kWh)"
+        },
+        "load_dem": {
+          "default": 0,
+          "type": "float",
+          "description": "Total energy or power consumption for all houses (kWh) over the time step"
+        }
+      },
+      "states": {
+        "forecast": {
+          "default": null,
+          "type": "None",
+          "description": "Placeholder for future load forecasting functionality"
+        },
+        "time": {
+          "default": null,
+          "type": "int",
+          "description": "Current simulation time in seconds"
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Load.LoadEV.load_EV_v3.LoadEV": {
+      "name": "LoadEV",
+      "path": "illuminator.models.Load.LoadEV.load_EV_v3.LoadEV",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Load.LoadEV.load_EV_v3.LoadEV"
+      ],
+      "summary": "Calculates total load demand based on number of houses and input load.",
+      "keysFrom": "docs",
+      "parameters": {
+        "houses_case": {
+          "default": null,
+          "type": "",
+          "description": ""
+        },
+        "houses_data": {
+          "default": null,
+          "type": "",
+          "description": ""
+        },
+        "load": {
+          "default": null,
+          "type": "float",
+          "description": "Input load per house in kW or kWh depending on output_type",
+          "documentedOnly": true
+        }
+      },
+      "inputs": {
+        "n": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "power": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "load_EV": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {},
+      "time_step_size": 1,
+      "notes": [
+        "parameters: 'load' is in the docstring but not in the code's parameters"
+      ]
+    },
+    "illuminator.models.Load.LoadHeatpump.load_heatpump_v3.LoadHeatpump": {
+      "name": "LoadHeatpump",
+      "path": "illuminator.models.Load.LoadHeatpump.load_heatpump_v3.LoadHeatpump",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Load.LoadHeatpump.load_heatpump_v3.LoadHeatpump"
+      ],
+      "summary": "Heat pump load model for calculating and scaling demand based on number of houses.",
+      "keysFrom": "docs",
+      "parameters": {
+        "houses_case": {
+          "default": 1,
+          "type": "int",
+          "description": "Target number of houses to scale demand for"
+        },
+        "houses_data": {
+          "default": null,
+          "type": "int",
+          "description": "Reference number of houses in the input data"
+        }
+      },
+      "inputs": {
+        "hp_load": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "load_HP": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {},
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.ElectricVehicle.EV.EV": {
+      "name": "EV",
+      "path": "illuminator.models.ElectricVehicle.EV.EV",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.ElectricVehicle.EV.EV"
+      ],
+      "summary": "A class to represent an Electric Vehicle (EV) charging model. This class provides methods to simulate the charging process of an EV battery.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing EV parameters such as end phases of charging, maximum power, and battery capacity.",
+      "parameters": {
+        "end_initial_phase": {
+          "default": 0,
+          "type": "",
+          "description": "soc at which the mid-phase starts [%]"
+        },
+        "end_mid_phase": {
+          "default": 0,
+          "type": "",
+          "description": "soc at which the final-phase starts [%]"
+        },
+        "max_power": {
+          "default": 0,
+          "type": "",
+          "description": "Max power from the charger [kW]"
+        },
+        "battery_cap": {
+          "default": 0,
+          "type": "",
+          "description": "capacity of the battery car [kWh]"
+        },
+        "fast": {
+          "default": false,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputsDescription": "Dictionary containing input variables like available power for charging.",
+      "inputs": {
+        "load_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like power demand during charging.",
+      "outputs": {
+        "demand": {
+          "default": 0,
+          "type": "",
+          "description": "power used by the charger per timestep [kW]"
+        },
+        "presence": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the EV model, such as state of charge (SOC) and desired SOC.",
+      "states": {
+        "soc": {
+          "default": 0,
+          "type": "",
+          "description": "state of charge after operation in a timestep [%]"
+        },
+        "desired_soc": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/ElectricVehicle/EV.py"
+    },
+    "illuminator.models.Battery.battery_v3.Battery": {
+      "name": "Battery",
+      "path": "illuminator.models.Battery.battery_v3.Battery",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Battery.battery_v3.Battery"
+      ],
+      "summary": "Battery model class for simulating battery charging and discharging behavior.",
+      "keysFrom": "docs",
+      "parameters": {
+        "charge_efficiency": {
+          "default": 90,
+          "type": "float",
+          "description": "Battery charging efficiency in %"
+        },
+        "discharge_efficiency": {
+          "default": 90,
+          "type": "float",
+          "description": "Battery discharging efficiency in %"
+        },
+        "max_energy": {
+          "default": 50,
+          "type": "float",
+          "description": "Maximum energy storage capacity in kWh"
+        },
+        "max_p": {
+          "default": 150,
+          "type": "float",
+          "description": "Maximum charging power limit in kW"
+        },
+        "min_p": {
+          "default": 250,
+          "type": "float",
+          "description": "Maximum discharging power limit in kW"
+        },
+        "soc_max": {
+          "default": 80,
+          "type": "float",
+          "description": "Maximum allowable state of charge in %"
+        },
+        "soc_min": {
+          "default": 3,
+          "type": "float",
+          "description": "Minimum allowable state of charge in %"
+        }
+      },
+      "inputs": {
+        "flow2b": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "p_in": {
+          "default": 20,
+          "type": "",
+          "description": ""
+        },
+        "p_out": {
+          "default": 20,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {
+        "flag": {
+          "default": -1,
+          "type": "",
+          "description": ""
+        },
+        "mod": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "soc": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Buffer.buffer.H2Buffer": {
+      "name": "H2Buffer",
+      "path": "illuminator.models.Buffer.buffer.H2Buffer",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Buffer.buffer.H2Buffer"
+      ],
+      "summary": "A class to represent an H2 Buffer model. This class provides methods to simulate the hydrogen flow through the buffer.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing buffer parameters such as minimum and maximum state of charge, charge and discharge efficiency, and total capacity.",
+      "parameters": {
+        "h2_soc_min": {
+          "default": 0,
+          "type": "",
+          "description": "Minimum state of charge of the hydrogen buffer before discharging stops [%]"
+        },
+        "h2_soc_max": {
+          "default": 100,
+          "type": "",
+          "description": "Maximum state of charge of the hydrogen buffer before charging stops [%]"
+        },
+        "h2_charge_eff": {
+          "default": 100,
+          "type": "",
+          "description": "Charge efficiency of the H2 buffer [%]"
+        },
+        "h2_discharge_eff": {
+          "default": 100,
+          "type": "",
+          "description": "Discharge efficiency of the H2 buffer [%]"
+        },
+        "max_flow_rate_in": {
+          "default": 10,
+          "type": "",
+          "description": "maximal flow in [kg/h]"
+        },
+        "min_flow_rate_in": {
+          "default": 0,
+          "type": "",
+          "description": "minimal flow in [kg/h]"
+        },
+        "max_flow_rate_out": {
+          "default": 10,
+          "type": "",
+          "description": "maximal flow out [kg/h]"
+        },
+        "min_flow_rate_out": {
+          "default": 0,
+          "type": "",
+          "description": "minimal flow out [kg/h]"
+        },
+        "h2_capacity_tot": {
+          "default": 100,
+          "type": "",
+          "description": "total capacity of the hydrogen buffer [kg]"
+        }
+      },
+      "inputsDescription": "Dictionary containing input variables like flow to the hydrogen buffer.",
+      "inputs": {
+        "h2_in": {
+          "default": 0,
+          "type": "",
+          "description": "input to H2 buffer [kg/timestep]"
+        },
+        "desired_out": {
+          "default": 0,
+          "type": "",
+          "description": "demanded hydrogen output flow [kg/h]"
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like flow into and out of the buffer, state of charge, operating mode, and buffer status flag.",
+      "outputs": {
+        "h2_out": {
+          "default": 0,
+          "type": "",
+          "description": "flow out of the H2 buffer [kg/timestep]"
+        },
+        "actual_h2_in": {
+          "default": 0,
+          "type": "",
+          "description": "The input that is processed in the buffer [kg/timestep]"
+        },
+        "overflow": {
+          "default": 0,
+          "type": "",
+          "description": "Overflow of the buffer [kg/timestep]"
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the buffer model.",
+      "states": {
+        "soc": {
+          "default": 0,
+          "type": "",
+          "description": "state of charge after operation in a timestep [%]"
+        },
+        "flag": {
+          "default": 0,
+          "type": "",
+          "description": "flag inidicating buffer status (1=fully charged, -1=full discharged, 0=available for control) [-]"
+        },
+        "available_h2": {
+          "default": 0,
+          "type": "",
+          "description": "amount of hydrogen that is available for the output [kg/timestep]"
+        },
+        "free_capacity": {
+          "default": 0,
+          "type": "",
+          "description": "amount of hyrogen that can be inputted before being full [kg/timestep]"
+        }
+      },
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/Buffer/buffer.py"
+    },
+    "illuminator.models.Electrolyzer.electrolyzer_v3.Electrolyzer": {
+      "name": "Electrolyzer",
+      "path": "illuminator.models.Electrolyzer.electrolyzer_v3.Electrolyzer",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Electrolyzer.electrolyzer_v3.Electrolyzer"
+      ],
+      "summary": "",
+      "keysFrom": "docs",
+      "parameters": {
+        "e_eff": {
+          "default": 70,
+          "type": "",
+          "description": ""
+        },
+        "max_p_in": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        },
+        "max_p_ramp_rate": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputs": {
+        "desired_out": {
+          "default": 30,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "h_gen": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "power_consumption": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {},
+      "notes": [
+        "parameters: defined as a 1-element tuple in code (trailing comma), unwrapped",
+        "inputs: defined as a 1-element tuple in code (trailing comma), unwrapped",
+        "outputs: defined as a 1-element tuple in code (trailing comma), unwrapped",
+        "states: defined as a 1-element tuple in code (trailing comma), unwrapped"
+      ]
+    },
+    "illuminator.models.Electrolyzer.ZZE_v3.ZZE": {
+      "name": "ZZE",
+      "path": "illuminator.models.Electrolyzer.ZZE_v3.ZZE",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Electrolyzer.ZZE_v3.ZZE"
+      ],
+      "summary": "",
+      "keysFrom": "docs",
+      "parameters": {
+        "e_eff": {
+          "default": 70,
+          "type": "",
+          "description": ""
+        },
+        "h2_capacity_tot": {
+          "default": 100,
+          "type": "",
+          "description": ""
+        },
+        "h2_charge_eff": {
+          "default": 100,
+          "type": "",
+          "description": ""
+        },
+        "h2_discharge_eff": {
+          "default": 100,
+          "type": "",
+          "description": ""
+        },
+        "h2_soc_max": {
+          "default": 100,
+          "type": "",
+          "description": ""
+        },
+        "h2_soc_min": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "max_flow_rate_in": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        },
+        "max_flow_rate_out": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        },
+        "max_p_in": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        },
+        "max_p_ramp_rate": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        },
+        "min_flow_rate_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "min_flow_rate_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputs": {
+        "desired_out": {
+          "default": 30,
+          "type": "",
+          "description": ""
+        },
+        "h2_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "actual_h2_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "h2_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "h_gen": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "overflow": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "power_consumption": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {
+        "available_h2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "flag": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "free_capacity": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "soc": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "notes": []
+    },
+    "illuminator.models.Thermolyzer.thermolyzer_v3.Thermolyzer": {
+      "name": "Thermolyzer",
+      "path": "illuminator.models.Thermolyzer.thermolyzer_v3.Thermolyzer",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Thermolyzer.thermolyzer_v3.Thermolyzer"
+      ],
+      "summary": "Thermolyzer model class for simulating a thermolyzer that converts biomass and electricity into hydrogen.",
+      "keysFrom": "docs",
+      "parameters": {
+        "C_CO_2": {
+          "default": 10,
+          "type": "",
+          "description": ""
+        },
+        "C_Eelec_h2": {
+          "default": 11.5,
+          "type": "float",
+          "description": "Conversion factor electrical energy to hydrogen mass [kWh/kg]"
+        },
+        "C_bio_h2": {
+          "default": 30,
+          "type": "float",
+          "description": "Conversion factor from biomass to hydrogen [-]"
+        },
+        "eff": {
+          "default": 60,
+          "type": "float",
+          "description": "Thermolyzer efficiency as a percentage [%]"
+        },
+        "max_p_in": {
+          "default": 10000,
+          "type": "float",
+          "description": "Maximum input power [kW]"
+        },
+        "max_ramp_up": {
+          "default": 60,
+          "type": "float",
+          "description": "Maximum ramp up in power per timestep [kW/timestep]"
+        },
+        "CO_2": {
+          "default": null,
+          "type": "float",
+          "description": "Absorption factor carbondioxide per h2 produced [-]",
+          "documentedOnly": true
+        }
+      },
+      "inputs": {
+        "biomass_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "desired_out": {
+          "default": 30,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "CO2_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "h_gen": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "power_consumption": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {},
+      "notes": [
+        "parameters: defined as a 1-element tuple in code (trailing comma), unwrapped",
+        "parameters: 'CO_2' is in the docstring but not in the code's parameters",
+        "inputs: defined as a 1-element tuple in code (trailing comma), unwrapped",
+        "outputs: defined as a 1-element tuple in code (trailing comma), unwrapped"
+      ]
+    },
+    "illuminator.models.Compressor.compressor_v3.Compressor": {
+      "name": "Compressor",
+      "path": "illuminator.models.Compressor.compressor_v3.Compressor",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.Compressor.compressor_v3.Compressor"
+      ],
+      "summary": "A class to represent a Compressor model. This class provides methods to simulate the compression of hydrogen gas.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing compressor parameters such as input pressure, output pressure, ambient temperature, and compressor efficiency.",
+      "parameters": {
+        "p_in": {
+          "default": 30,
+          "type": "",
+          "description": "input pressure [bar]"
+        },
+        "p_out": {
+          "default": 500,
+          "type": "",
+          "description": "output pressure [bar]"
+        },
+        "T_amb": {
+          "default": 293.15,
+          "type": "",
+          "description": "ambient temperature [K]"
+        },
+        "compressor_eff": {
+          "default": 99,
+          "type": "",
+          "description": "compressor efficiency [%]"
+        },
+        "max_power_in": {
+          "default": 10,
+          "type": "",
+          "description": "maximum power input [kW]"
+        }
+      },
+      "inputsDescription": "Dictionary containing input variables like hydrogen flow to the compressor.",
+      "inputs": {
+        "flow2c": {
+          "default": 0,
+          "type": "",
+          "description": "hydrogen flow to the compressor [kg/timestep]"
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like hydrogen flow from the compressor, power required for compression, and volumetric output flow.",
+      "outputs": {
+        "flow_from_c": {
+          "default": 0,
+          "type": "",
+          "description": "hydrogen flow from the compressor [kg/timestep]"
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the compressor model.",
+      "states": {
+        "power_req": {
+          "default": 0,
+          "type": "",
+          "description": "power required for the compression [kW]"
+        },
+        "volume_flow_out": {
+          "default": 0,
+          "type": "",
+          "description": "volumetric output flow [m3/timestep]"
+        }
+      },
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/Compressor/compressor_v3.py"
+    },
+    "illuminator.models.H2demand.h2demand_v3.H2demand": {
+      "name": "H2demand",
+      "path": "illuminator.models.H2demand.h2demand_v3.H2demand",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2demand.h2demand_v3.H2demand"
+      ],
+      "summary": "A class to represent an H2demand model. This class provides methods to simulate the demand of hydrogen gas.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing model parameters such as the number of demand units.",
+      "parameters": {
+        "units": {
+          "default": 1,
+          "type": "",
+          "description": "number of demand units"
+        }
+      },
+      "inputsDescription": "Dictionary containing input variables like the demand of hydrogen mass per timestep.",
+      "inputs": {
+        "demand": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {},
+      "statesDescription": "Dictionary containing the state variables of the demand model.",
+      "states": {
+        "tot_dem": {
+          "default": 0,
+          "type": "",
+          "description": "total consumption for each timetep (= demand input for units = 1) [kg/timestep]"
+        }
+      },
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/H2demand/h2demand_v3.py"
+    },
+    "illuminator.models.H2pipeline.h2pipeline.Pipeline": {
+      "name": "Pipeline",
+      "path": "illuminator.models.H2pipeline.h2pipeline.Pipeline",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2pipeline.h2pipeline.Pipeline"
+      ],
+      "summary": "A class to represent a Pipeline model. This class provides methods to simulate the flow of hydrogen gas through a pipeline.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing pipeline parameters such as cross-sectional area, input pressure, ambient temperature, pipe thickness, and pipe roughness.",
+      "parameters": {
+        "A": {
+          "default": 2,
+          "type": "",
+          "description": "cross-sectional area of the pipe [m2]"
+        },
+        "L": {
+          "default": 100,
+          "type": "",
+          "description": "length of the pipe [m]"
+        },
+        "p_outer": {
+          "default": 1,
+          "type": "",
+          "description": "pressure outside of the pipe [bar]"
+        },
+        "T_amb": {
+          "default": 293.15,
+          "type": "",
+          "description": "ambient temperature [K]"
+        },
+        "d": {
+          "default": 0.01,
+          "type": "",
+          "description": "pipe thickness [m]"
+        },
+        "eps": {
+          "default": 0.0000015,
+          "type": "",
+          "description": "pipe roughness [m]"
+        }
+      },
+      "inputsDescription": "Dictionary containing input variables like hydrogen flow into the pipeline and input pressure.",
+      "inputs": {
+        "flow_in": {
+          "default": 0,
+          "type": "",
+          "description": "hydrogen flow to into the pipeline [kg/timestep]"
+        },
+        "pressure_in": {
+          "default": 0,
+          "type": "",
+          "description": "input pressure of the hydrogen"
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like hydrogen flow out of the pipeline and output pressure.",
+      "outputs": {
+        "flow_out": {
+          "default": 0,
+          "type": "",
+          "description": "hydrogen flow out of the pipeline [kg/timestep]"
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the pipeline model.",
+      "states": {
+        "press_out": {
+          "default": 0,
+          "type": "",
+          "description": "output pressure of the hydrogen [bar]"
+        }
+      },
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/H2pipeline/h2pipeline.py"
+    },
+    "illuminator.models.H2storage.h2storage_v3.H2Storage": {
+      "name": "H2Storage",
+      "path": "illuminator.models.H2storage.h2storage_v3.H2Storage",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2storage.h2storage_v3.H2Storage"
+      ],
+      "summary": "A class to represent an H2 Storage model. This class provides methods to simulate the charging and discharging of hydrogen storage.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing storage parameters such as minimum and maximum state of charge, charge and discharge efficiency, and total capacity.",
+      "parameters": {
+        "h2_soc_min": {
+          "default": 0,
+          "type": "",
+          "description": "Minimum state of charge of the hydrogen storage before discharging stops [%]"
+        },
+        "h2_soc_max": {
+          "default": 100,
+          "type": "",
+          "description": "Maximum state of charge of the hydrogen storage before charging stops [%]"
+        },
+        "h2_charge_eff": {
+          "default": 100,
+          "type": "",
+          "description": "Charge efficiency of the H2 storage [%]"
+        },
+        "h2_discharge_eff": {
+          "default": 100,
+          "type": "",
+          "description": "Discharge efficiency of the H2 storage [%]"
+        },
+        "max_h2": {
+          "default": 10,
+          "type": "",
+          "description": "maximal flow (?) [kg/timestep]"
+        },
+        "min_h2": {
+          "default": -10,
+          "type": "",
+          "description": "minimal flow (?) [kg/timestep]"
+        },
+        "h2_capacity_tot": {
+          "default": 100,
+          "type": "",
+          "description": "total capacity of the hydrogen strorage [kg]"
+        }
+      },
+      "inputsDescription": "Dictionary containing input variables like flow to the hydrogen storage.",
+      "inputs": {
+        "flow2h2storage": {
+          "default": 0,
+          "type": "",
+          "description": "pos or neg flow to H2 storage [kg/timestep]"
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like flow into and out of the storage, state of charge, operating mode, and storage status flag.",
+      "outputs": {
+        "h2_in": {
+          "default": 0,
+          "type": "",
+          "description": "flow into the H2 storage [kg/timestep]"
+        },
+        "h2_out": {
+          "default": 0,
+          "type": "",
+          "description": "flow out of the H2 storage [kg/timestep]"
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the storage model.",
+      "states": {
+        "soc": {
+          "default": 0,
+          "type": "",
+          "description": "state of charge after operation in a timestep [%]"
+        },
+        "mod": {
+          "default": 0,
+          "type": "",
+          "description": "operating mode (1=charge, -1=discharge, 0=no action) [-]"
+        },
+        "flag": {
+          "default": 0,
+          "type": "",
+          "description": "flag inidicating storage status (1=fully charged, -1=full discharged, 0=available for control) [-]"
+        }
+      },
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/H2storage/h2storage_v3.py"
+    },
+    "illuminator.models.H2valve.h2valve_v3.H2Valve": {
+      "name": "H2Valve",
+      "path": "illuminator.models.H2valve.h2valve_v3.H2Valve",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2valve.h2valve_v3.H2Valve"
+      ],
+      "summary": "A class to represent a Valve model for controlling hydrogen flow in a system. This class provides methods to manage the flow of hydrogen through the valve.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing valve parameters like efficiency.",
+      "parameters": {
+        "valve_eff": {
+          "default": 100,
+          "type": "",
+          "description": ",   # efficicency of the valve [%]"
+        }
+      },
+      "inputsDescription": "Dictionary containing inputs like hydrogen input flow and fraction of flow allowed through output 1.",
+      "inputs": {
+        "h2_in": {
+          "default": 0,
+          "type": "",
+          "description": "h2 input"
+        },
+        "ratio1": {
+          "default": 0,
+          "type": "",
+          "description": "fraction of the flow that is allowed to pass through output 1 [%]"
+        },
+        "ratio2": {
+          "default": 0,
+          "type": "",
+          "description": "fraction of the flow that is allowed to pass through output 2 [%]"
+        },
+        "ratio3": {
+          "default": 0,
+          "type": "",
+          "description": "fraction of the flow that is allowed to pass through output 3 [%]"
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like hydrogen flow rates through outputs 1 and 2.",
+      "outputs": {
+        "out1": {
+          "default": 0,
+          "type": "",
+          "description": "h2 output 1"
+        },
+        "out2": {
+          "default": 0,
+          "type": "",
+          "description": "h2 output 2"
+        },
+        "out3": {
+          "default": 0,
+          "type": "",
+          "description": "h2 output 3"
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the system.",
+      "states": {},
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/H2valve/h2valve_v3.py"
+    },
+    "illuminator.models.H2_joint.H2_joint_v3.H2Joint": {
+      "name": "H2Joint",
+      "path": "illuminator.models.H2_joint.H2_joint_v3.H2Joint",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2_joint.H2_joint_v3.H2Joint"
+      ],
+      "summary": "A class to represent a Valve model for controlling hydrogen flow in a system. This class provides methods to manage the flow of hydrogen through the joint.",
+      "keysFrom": "source:main",
+      "parametersDescription": "Dictionary containing joint parameters like efficiency.",
+      "parameters": {
+        "joint_eff": {
+          "default": 100,
+          "type": "",
+          "description": ",   # efficicency of the joint [%]"
+        }
+      },
+      "inputsDescription": "Dictionary containing inputs like hydrogen input flow and fraction of flow allowed through output 1.",
+      "inputs": {
+        "h2_in_1": {
+          "default": 0,
+          "type": "",
+          "description": "h2 input 1"
+        },
+        "h2_in_2": {
+          "default": 0,
+          "type": "",
+          "description": "h2 input 2"
+        }
+      },
+      "outputsDescription": "Dictionary containing calculated outputs like hydrogen flow rates through outputs 1 and 2.",
+      "outputs": {
+        "out": {
+          "default": 0,
+          "type": "",
+          "description": "h2 output"
+        }
+      },
+      "statesDescription": "Dictionary containing the state variables of the system.",
+      "states": {},
+      "notes": [
+        "keys and defaults read from the code (illuminator-team/Illuminator@main) because the docs page omits them"
+      ],
+      "sourceUrl": "https://raw.githubusercontent.com/illuminator-team/Illuminator/main/src/illuminator/models/H2_joint/H2_joint_v3.py"
+    },
+    "illuminator.models.H2controller.H2_controller_v3.H2Controller": {
+      "name": "H2Controller",
+      "path": "illuminator.models.H2controller.H2_controller_v3.H2Controller",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2controller.H2_controller_v3.H2Controller"
+      ],
+      "summary": "A class to represent a Controller model for a hybrid renewable energy system. This class provides methods to manage power flows between renewable sources, battery storage, and hydrogen systems.",
+      "keysFrom": "docs",
+      "parameters": {
+        "size_storage1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "size_storage2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputs": {
+        "demand1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "demand2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "h2_soc1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "h2_soc2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "thermolyzer_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "dump": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "flow2h2storage1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "flow2h2storage2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {
+        "valve1_ratio1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve1_ratio2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve1_ratio3": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve2_ratio1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve2_ratio2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve2_ratio3": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.H2controller.H2_controller2.H2Controller2": {
+      "name": "H2Controller2",
+      "path": "illuminator.models.H2controller.H2_controller2.H2Controller2",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2controller.H2_controller2.H2Controller2"
+      ],
+      "summary": "A class to represent a Controller model for a hybrid renewable energy system. This class provides methods to manage flows in and out of a buffer.",
+      "keysFrom": "docs",
+      "parameters": {
+        "dummy": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputs": {
+        "buffer_available_h2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "buffer_free_capacity": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "demand1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "demand2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "thermolyzer_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "dump": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {
+        "buffer_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "desired_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve1_ratio1": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve1_ratio2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "valve1_ratio3": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.H2controller.H2_controller_example.H2ControllerExample": {
+      "name": "H2ControllerExample",
+      "path": "illuminator.models.H2controller.H2_controller_example.H2ControllerExample",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2controller.H2_controller_example.H2ControllerExample"
+      ],
+      "summary": "A class to represent a Controller model for a hybrid renewable energy system. This class provides methods to manage flows in and out of a buffer.",
+      "keysFrom": "docs",
+      "parameters": {
+        "dummy": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "inputs": {
+        "buffer_available_h2": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "buffer_free_capacity": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "demand": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "h2_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "outputs": {
+        "dump": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "states": {
+        "buffer_in": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        },
+        "desired_out": {
+          "default": 0,
+          "type": "",
+          "description": ""
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.H2PSA.PSA_v3.H2PSA": {
+      "name": "H2PSA",
+      "path": "illuminator.models.H2PSA.PSA_v3.H2PSA",
+      "categories": [
+        "Component"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Components/Components.html#illuminator.models.H2PSA.PSA_v3.H2PSA"
+      ],
+      "summary": "A Pressure Swing Adsorption (PSA) model for hydrogen purification.",
+      "keysFrom": "docs",
+      "parameters": {
+        "efficiency": {
+          "default": 100,
+          "type": "float",
+          "description": "Efficiency of the PSA unit as a percentage [%]."
+        }
+      },
+      "inputs": {
+        "h2_in": {
+          "default": 0,
+          "type": "float",
+          "description": "Hydrogen flow entering the PSA [kg/timestep]."
+        }
+      },
+      "outputs": {
+        "h2_out": {
+          "default": 0,
+          "type": "float",
+          "description": "Purified hydrogen flow leaving the PSA [kg/timestep]."
+        }
+      },
+      "states": {},
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Controllers.controller_T1.controller_T1_v3.Controller_T1": {
+      "name": "Controller_T1",
+      "path": "illuminator.models.Controllers.controller_T1.controller_T1_v3.Controller_T1",
+      "categories": [
+        "Controller"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Controllers/Controllers.html#illuminator.models.Controllers.controller_T1.controller_T1_v3.Controller_T1"
+      ],
+      "summary": "Controller for managing power flows between renewable generation, load, and battery storage.",
+      "keysFrom": "docs",
+      "parameters": {
+        "battery_active": {
+          "default": true,
+          "type": "bool",
+          "description": "Flag to enable/disable battery operation"
+        },
+        "max_p": {
+          "default": 100,
+          "type": "float",
+          "description": "Maximum power to/from the battery (kW)"
+        },
+        "soc_max": {
+          "default": 100,
+          "type": "float",
+          "description": "Maximum state of charge of the battery before charging stops (%)"
+        },
+        "soc_min": {
+          "default": 0,
+          "type": "float",
+          "description": "Minimum state of charge of the battery before discharging stops (%)"
+        }
+      },
+      "inputs": {
+        "load_dem": {
+          "default": 0,
+          "type": "float",
+          "description": "Electrical load demand (kW)"
+        },
+        "pv_gen": {
+          "default": 0,
+          "type": "float",
+          "description": "Solar power generation (kW)"
+        },
+        "soc": {
+          "default": 0,
+          "type": "float",
+          "description": "State of charge of the battery (%)"
+        },
+        "wind_gen": {
+          "default": 0,
+          "type": "float",
+          "description": "Wind power generation (kW)"
+        }
+      },
+      "outputs": {
+        "dump": {
+          "default": 0,
+          "type": "float",
+          "description": "Excess power that cannot be stored or used (kW)"
+        },
+        "flow2b": {
+          "default": 0,
+          "type": "float",
+          "description": "Power flow to/from battery (kW, positive for charging, negative for discharging)"
+        },
+        "res_load": {
+          "default": 0,
+          "type": "float",
+          "description": "Residual load after renewable generation (kW)"
+        }
+      },
+      "states": {},
+      "time_step_size": 1,
+      "notes": []
+    },
+    "illuminator.models.Controllers.controller_T3Congestion.controller_T3Congestion_v3.ControllerT3Congestion": {
+      "name": "ControllerT3Congestion",
+      "path": "illuminator.models.Controllers.controller_T3Congestion.controller_T3Congestion_v3.ControllerT3Congestion",
+      "categories": [
+        "Controller"
+      ],
+      "docs": [
+        "https://illuminator-team.github.io/website/references/Controllers/Controllers.html#illuminator.models.Controllers.controller_T3Congestion.controller_T3Congestion_v3.ControllerT3Congestion"
+      ],
+      "summary": "Controller for managing power flows between renewable generation, load, battery storage, and electrified assets.",
+      "keysFrom": "docs",
+      "parameters": {
+        "battery_active": {
+          "default": true,
+          "type": "bool",
+          "description": "Flag to enable/disable battery operation"
+        },
+        "elec_assets": {
+          "default": true,
+          "type": "bool",
+          "description": "Flag to enable/disable electrified assets"
+        },
+        "gridconnect_ctrl": {
+          "default": 15,
+          "type": "float",
+          "description": "Grid connection capacity limit (kW)"
+        },
+        "load_shift_active": {
+          "default": true,
+          "type": "bool",
+          "description": "Flag to enable/disable load shifting during congestion warnings"
+        },
+        "max_p": {
+          "default": 100,
+          "type": "float",
+          "description": "Maximum power to/from the battery (kW)"
+        },
+        "soc_max": {
+          "default": 100,
+          "type": "float",
+          "description": "Maximum state of charge of the battery before charging stops (%)"
+        },
+        "soc_min": {
+          "default": 0,
+          "type": "float",
+          "description": "Minimum state of charge of the battery before discharging stops (%)"
+        }
+      },
+      "inputs": {
+        "flag_warning": {
+          "default": null,
+          "type": "int",
+          "description": "Warning flag for grid congestion"
+        },
+        "load_EV": {
+          "default": 0,
+          "type": "float",
+          "description": "Electric vehicle load demand (kW)"
+        },
+        "load_HP": {
+          "default": 0,
+          "type": "float",
+          "description": "Heat pump load demand (kW)"
+        },
+        "load_dem": {
+          "default": 0,
+          "type": "float",
+          "description": "Base electrical load demand (kW)"
+        },
+        "pv_gen": {
+          "default": 0,
+          "type": "float",
+          "description": "Solar power generation (kW)"
+        },
+        "soc": {
+          "default": 0,
+          "type": "float",
+          "description": "State of charge of the battery (%)"
+        },
+        "wind_gen": {
+          "default": 0,
+          "type": "float",
+          "description": "Wind power generation (kW)"
+        }
+      },
+      "outputs": {
+        "dump": {
+          "default": 0,
+          "type": "float",
+          "description": "Excess power that cannot be stored or used (kW)"
+        },
+        "flow2b": {
+          "default": 0,
+          "type": "float",
+          "description": "Power flow to/from battery (kW, positive for charging, negative for discharging)"
+        },
+        "res_load": {
+          "default": 0,
+          "type": "float",
+          "description": "Residual load after renewable generation (kW)"
+        }
+      },
+      "states": {
+        "limit_grid_connect": {
+          "default": null,
+          "type": "float",
+          "description": "Grid connection limit for congestion management (kW)"
+        }
+      },
+      "time_step_size": 1,
+      "notes": []
+    }
+  }
+}
