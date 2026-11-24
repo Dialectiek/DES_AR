@@ -9,7 +9,7 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
-| `ar-13-manual-qol` | **In progress** (steps 1 and 2 of 6 done). AR-13: quality-of-life sprint for manual and cards mode. Cut from `ar-47-illuminator-schema` (needs its ports and palette pages), so it merges after `ar-12`. |
+| `ar-13-manual-qol` | **In progress** (steps 1–3 of 6 done). AR-13: quality-of-life sprint for manual and cards mode. Cut from `ar-47-illuminator-schema` (needs its ports and palette pages), so it merges after `ar-12`. |
 | `ar-47-illuminator-schema` | AR-47, pushed onto `ar-12-illuminator-models` (same commits). |
 | `ar-12-illuminator-models` | **Done, PR to main next.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Also holds AR-47: Illuminator schemas, port limits, floor arrows, info panel with parameters, hydrogen tubes as Pipelines. Checked in the screen preview; needs a headset test. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
@@ -54,7 +54,8 @@ assigned directly to the schema task. Skip it when the count gets there.)
          pick it up. It follows the ray as a ghost (inside the table only), its cables
          re-route live, release drops it. A move is one undoable step (`system.js`:
          `moveNode(id, x, z)`, history kind `move` with the old position; tested).
-      3. **Rotate.** While holding an asset, each **bumper press turns it 90°**. Nodes get a
+      3. ✅ **Rotate** (2026-11-24, `qol v3`, checked with `?preview=1&build=manual`; new
+         assets face the user snapped to a quarter turn). While holding an asset, each **bumper press turns it 90°**. Nodes get a
          `yaw` field (today an asset faces the user when placed and the angle is not
          stored); `rotateNode()` is undoable too, and the floor arrows and cables follow.
       4. **Live link preview.** After the first asset of a connection is picked, a
@@ -230,6 +231,9 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-13 step 3: bumper while holding an asset turns it 90° (R on a screen);
+  nodes keep `yaw`, a move and its turns are one undo step (`quarterTurn`, `snapToQuarter`
+  in `system.js`). APP_VERSION `qol v3`. 81 unit tests pass.
 - **2026-11-24**: AR-13 step 2: hold the trigger on an asset to move it (manual and
   cards mode; on a screen, drag it). Cables re-route while it moves; a bad drop puts it
   back; a move is one undo step (`dragNode` / `moveNode` in `system.js`). APP_VERSION `qol v2`. 78 unit tests pass.

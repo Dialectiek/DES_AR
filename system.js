@@ -35,13 +35,33 @@ export function resolveLink(a, b) {
   return result;
 }
 
+// A quarter turn (90°) from yaw, dir = 1 (counter-clockwise seen from above) or -1.
+// The result is kept in (-π, π] and snapped to whole quarters when it is within 1e-9.
+export function quarterTurn(yaw = 0, dir = 1) {
+  let y = yaw + (dir >= 0 ? 1 : -1) * Math.PI / 2;
+  y = Math.atan2(Math.sin(y), Math.cos(y));
+  const q = Math.round(y / (Math.PI / 2)) * (Math.PI / 2);
+  if (Math.abs(y - q) < 1e-9) y = q;
+  if (y <= -Math.PI) y += 2 * Math.PI;
+  return y;
+}
+
+// The quarter turn (0, ±π/2, π) closest to yaw. A new asset faces the user, snapped with
+// this so it lines up with the table edges and the right-angle cables.
+export function snapToQuarter(yaw = 0) {
+  const q = Math.round(yaw / (Math.PI / 2)) % 4;
+  return [0, Math.PI / 2, Math.PI, -Math.PI / 2][(q + 4) % 4];
+}
+
 export class EnergySystem {
   // config: the parsed components.json; schemas: the parsed illuminator-schemas.json
   // (optional: without it, assets have no ports and connect as before).
   constructor(config, schemas = null) {
     this.config = config;
     this.schemas = indexSchemas(schemas);
-    this.nodes = [];   // { id, colour, type (asset key or null), x, z, params? }
+    this.nodes = [];   // { id, colour, type (asset key or null), x, z, yaw?, params? }
+                       // yaw: turn around +Y in radians (front = +Z); set by the scene when
+                       // the asset first appears (facing the user), then by moves and turns.
     this.links = [];   // { id, carrier, from, to, power, fromPort, toPort, model?, params? }
     this.history = []; // undo stack
     this.nextId = 1;
@@ -143,27 +163,30 @@ export class EnergySystem {
     return node;
   }
 
-  // While an asset is dragged: sets its position without an undo step (the drop is the
-  // step, see moveNode). Returns the node, or null.
-  dragNode(id, x, z) {
+  // While an asset is dragged: sets its position (and its turn, yaw in radians, if given)
+  // without an undo step (the drop is the step, see moveNode). Returns the node, or null.
+  dragNode(id, x, z, yaw = undefined) {
     const node = this.node(id);
     if (!node) return null;
     node.x = x;
     node.z = z;
+    if (yaw !== undefined) node.yaw = yaw;
     return node;
   }
 
-  // Moves an asset to (x, z) as one undoable step. from: where the move started (default:
-  // where the node is now; pass the drag's start when dragNode moved it on the way).
-  // Returns false (no step) when the node is missing or ends where it started.
-  moveNode(id, x, z, from = null) {
+  // Moves (and turns, if yaw is given) an asset as one undoable step. from: { x, z, yaw }
+  // where the move started (default: where the node is now; pass the drag's start when
+  // dragNode moved it on the way). Returns false (no step) when the node is missing or
+  // ends where it started, facing the same way.
+  moveNode(id, x, z, from = null, yaw = undefined) {
     const node = this.node(id);
     if (!node) return false;
-    const start = from ?? { x: node.x, z: node.z };
+    const start = from ?? { x: node.x, z: node.z, yaw: node.yaw };
     node.x = x;
     node.z = z;
-    if (start.x === x && start.z === z) return false;
-    this.history.push({ kind: 'move', nodeId: id, from: { x: start.x, z: start.z } });
+    if (yaw !== undefined) node.yaw = yaw;
+    if (start.x === x && start.z === z && start.yaw === node.yaw) return false;
+    this.history.push({ kind: 'move', nodeId: id, from: { x: start.x, z: start.z, yaw: start.yaw } });
     return true;
   }
 
@@ -256,9 +279,11 @@ export class EnergySystem {
     if (step.kind === 'move') {
       const node = this.node(step.nodeId);
       if (!node) return 'nothing to move back';
+      const moved = node.x !== step.from.x || node.z !== step.from.z;
       node.x = step.from.x;
       node.z = step.from.z;
-      return `moved the ${this.labelOf(node)} back`;
+      if (step.from.yaw !== undefined) node.yaw = step.from.yaw;
+      return `${moved ? 'moved' : 'turned'} the ${this.labelOf(node)} back`;
     }
     // unlink: put the links back (their nodes may be gone if they were undone meanwhile)
     const restore = step.links.filter((l) => this.node(l.from) && this.node(l.to));

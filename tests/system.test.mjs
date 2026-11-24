@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLink, EnergySystem, colourForType } from '../system.js';
+import { resolveLink, EnergySystem, colourForType, quarterTurn, snapToQuarter } from '../system.js';
 
 const assets = {
   turbine: { label: 'Turbine', produces: ['electricity'], consumes: [], power_kW: 5 },
@@ -172,4 +172,45 @@ test('undo of a move whose asset was undone meanwhile is harmless', () => {
   sys.moveNode(t.id, 0.2, 0);
   sys.nodes = []; // as if removed by something else
   assert.equal(sys.undo(), 'nothing to move back');
+});
+
+test('quarterTurn: 90° steps, kept in (-π, π]', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} vs ${b}`);
+  close(quarterTurn(0), Math.PI / 2);
+  close(quarterTurn(Math.PI / 2), Math.PI);
+  close(quarterTurn(Math.PI), -Math.PI / 2);
+  close(quarterTurn(0, -1), -Math.PI / 2);
+  close(quarterTurn(-Math.PI / 2, -1), Math.PI);
+  close(quarterTurn(undefined), Math.PI / 2);
+  close(quarterTurn(0.3), 0.3 + Math.PI / 2); // a free angle keeps its offset
+  let y = 0.3;
+  for (let i = 0; i < 4; i++) y = quarterTurn(y);
+  close(y, 0.3); // four turns = back where it was
+});
+
+test('moveNode with a yaw: a turn in place is one step, undone as a turn', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  t.yaw = 0; // the scene sets it when the asset appears
+  sys.dragNode(t.id, 0.1, -0.2, Math.PI / 2);
+  assert.equal(t.yaw, Math.PI / 2);
+  assert.equal(sys.moveNode(t.id, 0.1, -0.2, { x: 0.1, z: -0.2, yaw: 0 }, Math.PI / 2), true);
+  assert.equal(sys.undo(), 'turned the Turbine back');
+  assert.equal(t.yaw, 0);
+  // moved and turned: undo restores both
+  sys.moveNode(t.id, 0.3, 0, null, Math.PI);
+  assert.equal(sys.undo(), 'moved the Turbine back');
+  assert.deepEqual([t.x, t.z, t.yaw], [0.1, -0.2, 0]);
+  // same place, same yaw: no step
+  assert.equal(sys.moveNode(t.id, 0.1, -0.2, null, 0), false);
+});
+
+test('snapToQuarter: the nearest of 0, ±90°, 180°', () => {
+  assert.equal(snapToQuarter(0.2), 0);
+  assert.equal(snapToQuarter(1.2), Math.PI / 2);
+  assert.equal(snapToQuarter(-1.2), -Math.PI / 2);
+  assert.equal(snapToQuarter(3.0), Math.PI);
+  assert.equal(snapToQuarter(-3.0), Math.PI);
+  assert.equal(snapToQuarter(7.0), 0); // 7 rad ≈ 401° → 0
+  assert.equal(snapToQuarter(), 0);
 });

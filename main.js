@@ -36,7 +36,7 @@ import {
   dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex, describeColour,
   worldToPixel, samplePatch, nearestColour, balanceColour, alignProjection, sampleSlots, pixelShiftToNdc,
 } from './cards.js';
-import { EnergySystem, colourForType } from './system.js';
+import { quarterTurn, snapToQuarter, EnergySystem, colourForType } from './system.js';
 import {
   loadComponents, preloadModels, makeAssetObject, disposeAssetObject, faceTowards, pickAsset, displayColour,
 } from './assets.js';
@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'qol v2';
+const APP_VERSION = 'qol v3';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -1647,7 +1647,10 @@ function bumperDown(src, via) {
   bumper.down = true;
   bumper.at = now;
   bumper.fired = false;
-  if (!calib.done) {
+  if (build.drag) { // holding an asset: a quarter turn, at once (no undo, no recalibration)
+    bumper.fired = true;
+    turnHeld();
+  } else if (!calib.done) {
     bumper.fired = true;
     undoCorner();
   } else if (!colourCal.done) { // colour squares: back to the last corner
@@ -1768,14 +1771,21 @@ function syncScene() {
     const head = headInTable();
     for (const node of sys.nodes) {
       const known = build.objects.get(node.id);
-      if (known) { // moved (drag, move, undo): follow the node
+      if (known) { // moved or turned (drag, move, undo): follow the node
         known.position.x = node.x;
         known.position.z = node.z;
+        if (node.yaw !== undefined) known.rotation.y = node.yaw;
         continue;
       }
       const obj = makeAssetObject(node, components.config, components.templates);
       addPortArrows(obj, sys.portsOf(node)); // one floor arrow per Illuminator input / output
-      faceTowards(obj, head);
+      // A new asset faces the user; from then on its turn is kept in the node (yaw).
+      // Snapped to a quarter turn, so it lines up with the table edges and the cables.
+      if (node.yaw === undefined) {
+        faceTowards(obj, head);
+        node.yaw = snapToQuarter(obj.rotation.y);
+      }
+      obj.rotation.y = node.yaw;
       tableAnchor.add(obj);
       build.objects.set(node.id, obj);
     }
@@ -1801,7 +1811,7 @@ function resetBuild() {
 }
 
 function undoBuild() {
-  if (build.drag) return;
+  if (build.drag) { turnHeld(); return; }
   if (build.selected !== null) {
     build.selected = null;
     say('Selection cleared');
@@ -1994,19 +2004,40 @@ function startDrag(id) {
   if (!node || !obj) return;
   if (build.selected === id) build.selected = null;
   build.drag = {
-    id, start: { x: node.x, z: node.z }, check: { ok: true }, routedAt: { x: node.x, z: node.z },
+    id, start: { x: node.x, z: node.z, yaw: node.yaw }, check: { ok: true }, routedAt: { x: node.x, z: node.z },
     ringColour: obj.userData.ringMat.color.getHex(), // the ring shows white / orange while dragging
   };
   obj.position.y = DRAG_LIFT;
   manual.palette?.hideGhost();
   info('Drag started', { asset: sys.labelOf(node), id });
-  say(`Moving the ${sys.labelOf(node)}: let go to drop it`);
+  say(`Moving the ${sys.labelOf(node)}: let go to drop it, ${preview.active ? 'R' : 'bumper'} = turn`);
+}
+
+// Bumper (R or Backspace on a screen) while holding an asset: a quarter turn. Its floor
+// arrows turn with it; the drop makes the move and the turn one undo step.
+function turnHeld(dir = 1) {
+  const drag = build.drag, sys = build.system;
+  const node = drag && sys.node(drag.id), obj = drag && build.objects.get(drag.id);
+  if (!node || !obj) return;
+  sys.dragNode(node.id, node.x, node.z, quarterTurn(node.yaw, dir));
+  obj.rotation.y = node.yaw;
+  drag.turns = (drag.turns ?? 0) + 1;
+  info('Asset turned', { asset: sys.labelOf(node), yaw_deg: Math.round((node.yaw * 180) / Math.PI) });
 }
 
 const _dragPoint = new THREE.Vector3();
 const _tableWorld = new THREE.Vector3();
 // Every frame (manual and cards step): turns a long press into a drag, and moves the
 // dragged asset to where the ray meets the table plane. Returns the dragged object or null.
+// Where the ray meets the table plane, table-local (into `out`), or null.
+function rayOnTable(aim, out) {
+  tableAnchor.getWorldPosition(_tableWorld);
+  const t = aim.dir.y < -1e-3 ? (_tableWorld.y - aim.origin.y) / aim.dir.y : -1;
+  if (!(t > 0 && t < 5)) return null;
+  out.copy(aim.origin).addScaledVector(aim.dir, t);
+  return tableAnchor.worldToLocal(out);
+}
+
 function dragStep(aim) {
   const now = performance.now();
   if (build.press && !build.drag && now - build.press.at > DRAG_HOLD_MS) startDrag(build.press.id);
@@ -2018,12 +2049,12 @@ function dragStep(aim) {
     return null;
   }
   if (aim) {
-    // The ray on the table plane (not a hit-test point: that could land on the asset).
-    tableAnchor.getWorldPosition(_tableWorld);
-    const t = aim.dir.y < -1e-3 ? (_tableWorld.y - aim.origin.y) / aim.dir.y : -1;
-    if (t > 0 && t < 5) {
-      _dragPoint.copy(aim.origin).addScaledVector(aim.dir, t);
-      tableAnchor.worldToLocal(_dragPoint);
+    // The ray on the table plane (not a hit-test point: that could land on the asset),
+    // plus where on the asset it was grabbed, so picking it up doesn't make it jump.
+    if (rayOnTable(aim, _dragPoint)) {
+      if (!drag.grab) drag.grab = { x: drag.start.x - _dragPoint.x, z: drag.start.z - _dragPoint.z };
+      _dragPoint.x += drag.grab.x;
+      _dragPoint.z += drag.grab.z;
       sys.dragNode(drag.id, _dragPoint.x, _dragPoint.z);
       obj.position.set(_dragPoint.x, DRAG_LIFT, _dragPoint.z);
       drag.check = dragCheck(drag.id, _dragPoint.x, _dragPoint.z);
@@ -2052,11 +2083,12 @@ function pressEnd() {
   }
   if (!node) return true;
   const check = dragCheck(drag.id, node.x, node.z);
-  if (check.ok && sys.moveNode(drag.id, node.x, node.z, drag.start)) {
-    info('Asset moved', { asset: sys.labelOf(node), x: r3(node.x), z: r3(node.z) });
-    say(`Moved the ${sys.labelOf(node)}`);
+  const moved = node.x !== drag.start.x || node.z !== drag.start.z;
+  if (check.ok && sys.moveNode(drag.id, node.x, node.z, drag.start, node.yaw)) {
+    info('Asset moved', { asset: sys.labelOf(node), x: r3(node.x), z: r3(node.z), yaw_deg: Math.round((node.yaw * 180) / Math.PI) });
+    say(`${moved ? 'Moved' : 'Turned'} the ${sys.labelOf(node)}`);
   } else {
-    sys.dragNode(drag.id, drag.start.x, drag.start.z);
+    sys.dragNode(drag.id, drag.start.x, drag.start.z, drag.start.yaw);
     if (!check.ok) say(`Can't go there (${check.reason}): the ${sys.labelOf(node)} went back`, 'warn');
   }
   syncScene();
@@ -2198,7 +2230,8 @@ function highlightAssets(time) {
 function dragLine() {
   const sys = build.system, node = sys.node(build.drag.id);
   const what = node ? sys.labelOf(node) : 'asset';
-  return build.drag.check.ok ? `Moving the ${what}: let go to drop it` : `Moving the ${what}: ${build.drag.check.reason}, it would go back`;
+  const turn = preview.active ? 'R = turn' : 'bumper = turn';
+  return build.drag.check.ok ? `Moving the ${what}: let go to drop it · ${turn}` : `Moving the ${what}: ${build.drag.check.reason}, it would go back`;
 }
 
 // Demo scene: the diorama is all there is; only recalibration.
@@ -2431,7 +2464,7 @@ function manualDone() {
 
 // Short bumper press (Backspace / "Undo" on a screen): cancel, back to editing, or undo.
 function manualBack() {
-  if (build.drag) return; // rotating while dragging comes with AR-13 step 3
+  if (build.drag) { turnHeld(); return; } // holding an asset: turn it
   const sys = build.system;
   const action = bumperAction(manual.phase, build.selected !== null, sys?.lastStepKind() ?? null);
   if (action === 'clear-selection') {
@@ -3688,6 +3721,7 @@ async function startPreview() {
     window.addEventListener('keydown', (e) => {
       if (e.target !== document.body) return;
       if (e.key === 'Backspace') { e.preventDefault(); manualBack(); }
+      if ((e.key === 'r' || e.key === 'R') && build.drag) { e.preventDefault(); turnHeld(e.key === 'R' ? -1 : 1); }
       if (e.key === 'Enter') { e.preventDefault(); if (manual.phase === 'done') manualBack(); else manualDone(); }
     });
     enterManual();
