@@ -102,3 +102,11 @@ test('bumperAction: cancel a half-made connection, leave done, else undo', () =>
   assert.equal(bumperAction('edit', false, 'unlink'), 'undo');
   assert.equal(bumperAction('edit', false, null), 'nothing');
 });
+
+test('paletteGroups: assets with "palette": false are left out', () => {
+  const config = {
+    paletteGroups: [{ key: 'a', label: 'A' }, { key: 'other', label: 'Other' }],
+    assets: { x: { group: 'a' }, hidden: { group: 'a', palette: false }, y: {}, gone: { palette: false } },
+  };
+  assert.deepEqual(paletteGroups(config).map((p) => p.types), [['x'], ['y']]);
+});

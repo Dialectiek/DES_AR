@@ -51,7 +51,8 @@ export function paletteSlots(count, length, width, head, { offset = 0.07, maxSpa
 
 // Palette pages: the asset types grouped by their "group" field, in the order of
 // config.paletteGroups ([{ key, label, colour }]); within a page, config.assets order.
-// A type without a known group goes to the last page. Empty pages are left out.
+// A type without a known group goes to the last page; a type with "palette": false is not
+// on the palette at all (cards mode and saves can still use it). Empty pages are left out.
 // Returns [{ key, label, colour, types }]. Without paletteGroups: one page with everything.
 export function paletteGroups(config) {
   const defs = Array.isArray(config?.paletteGroups) && config.paletteGroups.length
@@ -61,6 +62,7 @@ export function paletteGroups(config) {
   const byKey = new Map(pages.map((p) => [p.key, p]));
   const last = pages[pages.length - 1];
   for (const [type, def] of Object.entries(config?.assets ?? {})) {
+    if (def?.palette === false) continue;
     (byKey.get(def?.group) ?? last).types.push(type);
   }
   return pages.filter((p) => p.types.length);

@@ -233,6 +233,11 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-13: the palette's Other page now has only the EWI tower and the banana
+  car. The rest (House with PV, wind turbine, solar battery, power box, greenhouse, car, data
+  collector) have `"palette": false` in `components.json`: off the palette, still there for
+  cards mode (red = House with PV), saves and the export. Without the collector on the
+  palette, data connections can't be made by hand for now.
 - **2026-11-24**: AR-13 steps 4–6: live link preview (band in the carrier colour, red with
   the reason when refused), save / load through the dev server (`POST /saves`, `GET /saves`,
   localStorage without it), WebAudio sounds (`?sound=0`, toolbar toggle). Also: assets drawn
