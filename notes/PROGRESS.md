@@ -139,7 +139,11 @@ back and play on the table.
     The info panel (pointing at a palette tile or an asset) lists the model, its inputs and
     outputs with what they connect to, and the parameters with their values.
   - Finishing with open ports is allowed but the HUD and the log list them.
-  - APP_VERSION `ports v1`. 74 unit tests pass. Checked with `?preview=1&build=manual`.
+  - The four Pipeline assets (and their GLBs) are gone: a hydrogen connection is already
+    drawn as a tube, so that is the pipe. The Pipes page keeps the valve and the joint.
+    Open for the YAML export (AR-3): turn a hydrogen tube into an Illuminator `Pipeline`?
+  - The house (`Load-Residential`) is smaller on the table: `size_m` 0.14 → 0.10.
+  - APP_VERSION `ports v2`. 74 unit tests pass. Checked with `?preview=1&build=manual`.
 - 2026-11-24: **AR-12** Models for every Illuminator component type, in manual mode.
   - 34 GLBs in `assets/models/illuminator/`, named after the Illuminator types (e.g.
     `PV-ground`, `Load-Industrial`, `H2Storage-sphere`): 21 types, several with variants.
@@ -187,7 +191,8 @@ back and play on the table.
 ## Log
 
 - **2026-11-24**: AR-47: Illuminator schemas, port limits, floor arrows and the info
-  panel (branch `ar-47-illuminator-schema`, on top of AR-12). 74 unit tests pass.
+  panel (branch `ar-47-illuminator-schema`, on top of AR-12). Removed the Pipeline assets
+  (the hydrogen tube is the pipe) and made the house smaller. 74 unit tests pass.
   Headset check to do: the panel text size and the arrows on the ML2.
 - **2026-11-24**: AR-12: models for every Illuminator component and palette pages in
   manual mode. Unit tests pass (60). Headset check still to do: thin parts (pipes, blades)

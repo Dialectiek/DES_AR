@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'ports v1';
+const APP_VERSION = 'ports v2';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;

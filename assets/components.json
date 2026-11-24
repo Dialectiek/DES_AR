@@ -13,7 +13,7 @@
     "gray": null,
     "brown": null
   },
-  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m.",
+  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m. Illuminator Pipelines have no asset: a hydrogen connection is drawn as a tube instead.",
   "paletteGroups": [
     { "key": "electricity", "label": "Electricity", "colour": "#ffe14d" },
     { "key": "loads", "label": "Loads", "colour": "#ff9a6b" },
@@ -205,7 +205,7 @@
       "group": "loads",
       "illuminator": "Load",
       "model": "assets/models/illuminator/Load-Residential.glb",
-      "size_m": 0.14,
+      "size_m": 0.1,
       "produces": ["data"],
       "consumes": ["electricity"],
       "power_kW": 3
@@ -379,46 +379,6 @@
       "produces": ["data"],
       "consumes": ["data"],
       "power_kW": 1
-    },
-    "Pipeline": {
-      "label": "Pipeline 12 m",
-      "group": "pipes",
-      "illuminator": "Pipeline",
-      "model": "assets/models/illuminator/Pipeline.glb",
-      "size_m": 0.156,
-      "produces": ["hydrogen", "data"],
-      "consumes": ["hydrogen"],
-      "power_kW": 20
-    },
-    "Pipeline-short": {
-      "label": "Pipeline 6 m",
-      "group": "pipes",
-      "illuminator": "Pipeline",
-      "model": "assets/models/illuminator/Pipeline-short.glb",
-      "size_m": 0.078,
-      "produces": ["hydrogen", "data"],
-      "consumes": ["hydrogen"],
-      "power_kW": 20
-    },
-    "Pipeline-turn-left": {
-      "label": "Pipe bend left",
-      "group": "pipes",
-      "illuminator": "Pipeline",
-      "model": "assets/models/illuminator/Pipeline-turn-left.glb",
-      "size_m": 0.045,
-      "produces": ["hydrogen", "data"],
-      "consumes": ["hydrogen"],
-      "power_kW": 20
-    },
-    "Pipeline-turn-right": {
-      "label": "Pipe bend right",
-      "group": "pipes",
-      "illuminator": "Pipeline",
-      "model": "assets/models/illuminator/Pipeline-turn-right.glb",
-      "size_m": 0.045,
-      "produces": ["hydrogen", "data"],
-      "consumes": ["hydrogen"],
-      "power_kW": 20
     },
     "H2Valve": {
       "label": "H2 valve (split)",

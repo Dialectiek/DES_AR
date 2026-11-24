@@ -55,7 +55,8 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 Data in `assets/`:
 - `components.json`: card colours → assets, plus the asset types for **manual and cards** modes.
   `paletteGroups` + each asset's `group` split the manual palette into pages.
-- `models/illuminator/`: one GLB per Illuminator component type (and variants), connection
+- `models/illuminator/`: one GLB per Illuminator component type (and variants) except
+  Pipeline, which is drawn as the hydrogen tube between two assets; connection
   points (`port_*`) all at 1.0 m. Their builder source is not in the repo.
 - `illuminator-schemas.json`: every Illuminator model's parameters, inputs, outputs and
   states, generated from the docs. An asset's `illuminator` field in `components.json` points
