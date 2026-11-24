@@ -143,7 +143,31 @@ export class EnergySystem {
     return node;
   }
 
-  // Kind of the step undo() would undo next: 'add' | 'link' | 'unlink' | null.
+  // While an asset is dragged: sets its position without an undo step (the drop is the
+  // step, see moveNode). Returns the node, or null.
+  dragNode(id, x, z) {
+    const node = this.node(id);
+    if (!node) return null;
+    node.x = x;
+    node.z = z;
+    return node;
+  }
+
+  // Moves an asset to (x, z) as one undoable step. from: where the move started (default:
+  // where the node is now; pass the drag's start when dragNode moved it on the way).
+  // Returns false (no step) when the node is missing or ends where it started.
+  moveNode(id, x, z, from = null) {
+    const node = this.node(id);
+    if (!node) return false;
+    const start = from ?? { x: node.x, z: node.z };
+    node.x = x;
+    node.z = z;
+    if (start.x === x && start.z === z) return false;
+    this.history.push({ kind: 'move', nodeId: id, from: { x: start.x, z: start.z } });
+    return true;
+  }
+
+  // Kind of the step undo() would undo next: 'add' | 'link' | 'unlink' | 'move' | null.
   lastStepKind() {
     return this.history.at(-1)?.kind ?? null;
   }
@@ -228,6 +252,13 @@ export class EnergySystem {
       const ids = new Set(step.linkIds);
       this.links = this.links.filter((l) => !ids.has(l.id));
       return 'removed the last connection';
+    }
+    if (step.kind === 'move') {
+      const node = this.node(step.nodeId);
+      if (!node) return 'nothing to move back';
+      node.x = step.from.x;
+      node.z = step.from.z;
+      return `moved the ${this.labelOf(node)} back`;
     }
     // unlink: put the links back (their nodes may be gone if they were undone meanwhile)
     const restore = step.links.filter((l) => this.node(l.from) && this.node(l.to));

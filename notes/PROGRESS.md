@@ -9,7 +9,7 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
-| `ar-13-manual-qol` | **In progress** (step 1 of 6 done). AR-13: quality-of-life sprint for manual and cards mode. Cut from `ar-47-illuminator-schema` (needs its ports and palette pages), so it merges after `ar-12`. |
+| `ar-13-manual-qol` | **In progress** (steps 1 and 2 of 6 done). AR-13: quality-of-life sprint for manual and cards mode. Cut from `ar-47-illuminator-schema` (needs its ports and palette pages), so it merges after `ar-12`. |
 | `ar-47-illuminator-schema` | AR-47, pushed onto `ar-12-illuminator-models` (same commits). |
 | `ar-12-illuminator-models` | **Done, PR to main next.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Also holds AR-47: Illuminator schemas, port limits, floor arrows, info panel with parameters, hydrogen tubes as Pipelines. Checked in the screen preview; needs a headset test. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
@@ -49,7 +49,8 @@ assigned directly to the schema task. Skip it when the count gets there.)
          (`backAction()` in `manual.js` goes; update its tests). **Done stays as a check**:
          it hides the palette and lists open ports, and Done (or the bumper) brings the
          palette back; nothing is locked.
-      2. **Move.** A trigger tap on an asset = connect; **hold the trigger ~0.4 s** on it =
+      2. ✅ **Move** (2026-11-24, `qol v2`, checked with `?preview=1&build=manual`; the
+         hold without moving is headset-only, untested). A trigger tap on an asset = connect; **hold the trigger ~0.4 s** on it =
          pick it up. It follows the ray as a ghost (inside the table only), its cables
          re-route live, release drops it. A move is one undoable step (`system.js`:
          `moveNode(id, x, z)`, history kind `move` with the old position; tested).
@@ -229,6 +230,9 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-13 step 2: hold the trigger on an asset to move it (manual and
+  cards mode; on a screen, drag it). Cables re-route while it moves; a bad drop puts it
+  back; a move is one undo step (`dragNode` / `moveNode` in `system.js`). APP_VERSION `qol v2`. 78 unit tests pass.
 - **2026-11-24**: AR-13 step 1: manual mode has no place/connect phases any more
   (phases `edit` and `done`), bumper = cancel or undo (`bumperAction` in `manual.js`),
   Done only hides the palette and lists open ports. APP_VERSION `qol v1`. 75 unit tests pass.

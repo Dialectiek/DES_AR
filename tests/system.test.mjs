@@ -140,3 +140,36 @@ test('colourForType: the card colour mapped to an asset, or null', () => {
   assert.equal(colourForType(config, 'battery'), null);
   assert.equal(colourForType({}, 'car'), null);
 });
+
+test('moveNode is one undoable step; dragNode moves without a step', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  sys.dragNode(t.id, 0.15, -0.1);
+  sys.dragNode(t.id, 0.2, 0.05);
+  assert.equal(sys.lastStepKind(), 'add'); // dragging leaves no steps
+  assert.equal(sys.moveNode(t.id, 0.25, 0.05, { x: 0.1, z: -0.2 }), true);
+  assert.deepEqual([t.x, t.z], [0.25, 0.05]);
+  assert.equal(sys.lastStepKind(), 'move');
+  assert.equal(sys.undo(), 'moved the Turbine back');
+  assert.deepEqual([t.x, t.z], [0.1, -0.2]);
+  assert.equal(sys.lastStepKind(), 'add');
+});
+
+test('moveNode: no step when the asset ends where it started, or is missing', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  sys.dragNode(t.id, 0.3, 0.3);
+  assert.equal(sys.moveNode(t.id, 0.1, -0.2, { x: 0.1, z: -0.2 }), false);
+  assert.deepEqual([t.x, t.z], [0.1, -0.2]);
+  assert.equal(sys.lastStepKind(), 'add');
+  assert.equal(sys.moveNode(999, 0, 0), false);
+  assert.equal(sys.dragNode(999, 0, 0), null);
+});
+
+test('undo of a move whose asset was undone meanwhile is harmless', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0, 0);
+  sys.moveNode(t.id, 0.2, 0);
+  sys.nodes = []; // as if removed by something else
+  assert.equal(sys.undo(), 'nothing to move back');
+});

@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'qol v1';
+const APP_VERSION = 'qol v2';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -1729,6 +1729,9 @@ const build = {
   lastTime: 0,
   lastTrigger: 0,
   version: 0,            // bumped by syncScene: the info panel redraws when it changes
+  press: null,           // { id, at } trigger held down on an asset (may become a drag)
+  drag: null,            // { id, start: {x, z}, check, routedAt: {x, z} } while moving an asset
+  dragEndedAt: 0,        // the 'select' that follows a drop is not a click
 };
 
 function say(text, level = 'info') {
@@ -1764,7 +1767,12 @@ function syncScene() {
   if (sys) {
     const head = headInTable();
     for (const node of sys.nodes) {
-      if (build.objects.has(node.id)) continue;
+      const known = build.objects.get(node.id);
+      if (known) { // moved (drag, move, undo): follow the node
+        known.position.x = node.x;
+        known.position.z = node.z;
+        continue;
+      }
       const obj = makeAssetObject(node, components.config, components.templates);
       addPortArrows(obj, sys.portsOf(node)); // one floor arrow per Illuminator input / output
       faceTowards(obj, head);
@@ -1793,6 +1801,7 @@ function resetBuild() {
 }
 
 function undoBuild() {
+  if (build.drag) return;
   if (build.selected !== null) {
     build.selected = null;
     say('Selection cleared');
@@ -1945,6 +1954,125 @@ function clickAsset(id) {
   }
 }
 
+// ---- Moving assets (manual and cards mode) -------------------------------------
+// Hold the trigger on an asset (DRAG_HOLD_MS) to pick it up: it follows the ray over the
+// table, its cables re-route, and letting go drops it (one undoable step, moveNode).
+// A drop where an asset can't go (off the table, too close to another) puts it back.
+// A short press on an asset stays a click (connect). On a screen, pressing the mouse on
+// an asset and moving it starts the drag at once.
+const DRAG_HOLD_MS = 400;
+const DRAG_LIFT = 0.015;     // metres the dragged asset floats above the table
+const DRAG_REROUTE = 0.004;  // re-route the cables after this much movement (metres)
+
+function buildActive() {
+  const corners = state.mode === 'corners' || preview.active; // the screen preview skips the setup
+  return corners && calib.done && colourCal.done && (state.build === 'manual' || state.build === 'cards');
+}
+
+// Can the dragged asset `id` go at table-local (x, z)? { ok, reason }
+function dragCheck(id, x, z) {
+  const t = state.table;
+  if (!insideTable(x, z, t.length, t.width)) return { ok: false, reason: 'off the table' };
+  const sys = build.system;
+  const near = sys.nodes.find((n) => n.id !== id && Math.hypot(n.x - x, n.z - z) < MANUAL_MIN_GAP);
+  if (near) return { ok: false, reason: `too close to the ${sys.labelOf(near)}` };
+  return { ok: true };
+}
+
+// Trigger (or mouse) down: remember the asset under the ray; the frame loop turns a long
+// enough hold into a drag.
+function pressStart(src) {
+  if (!buildActive() || build.drag || build.hovered === null) return;
+  if (src && !acceptInput(src, 'pinch')) return;
+  if (src && calib.sources.has(src)) calib.active = src;
+  build.press = { id: build.hovered, at: performance.now() };
+}
+
+function startDrag(id) {
+  const sys = build.system, node = sys?.node(id), obj = build.objects.get(id);
+  build.press = null;
+  if (!node || !obj) return;
+  if (build.selected === id) build.selected = null;
+  build.drag = {
+    id, start: { x: node.x, z: node.z }, check: { ok: true }, routedAt: { x: node.x, z: node.z },
+    ringColour: obj.userData.ringMat.color.getHex(), // the ring shows white / orange while dragging
+  };
+  obj.position.y = DRAG_LIFT;
+  manual.palette?.hideGhost();
+  info('Drag started', { asset: sys.labelOf(node), id });
+  say(`Moving the ${sys.labelOf(node)}: let go to drop it`);
+}
+
+const _dragPoint = new THREE.Vector3();
+const _tableWorld = new THREE.Vector3();
+// Every frame (manual and cards step): turns a long press into a drag, and moves the
+// dragged asset to where the ray meets the table plane. Returns the dragged object or null.
+function dragStep(aim) {
+  const now = performance.now();
+  if (build.press && !build.drag && now - build.press.at > DRAG_HOLD_MS) startDrag(build.press.id);
+  const drag = build.drag;
+  if (!drag) return null;
+  const sys = build.system, obj = build.objects.get(drag.id);
+  if (!obj || !sys.node(drag.id)) {
+    build.drag = null;
+    return null;
+  }
+  if (aim) {
+    // The ray on the table plane (not a hit-test point: that could land on the asset).
+    tableAnchor.getWorldPosition(_tableWorld);
+    const t = aim.dir.y < -1e-3 ? (_tableWorld.y - aim.origin.y) / aim.dir.y : -1;
+    if (t > 0 && t < 5) {
+      _dragPoint.copy(aim.origin).addScaledVector(aim.dir, t);
+      tableAnchor.worldToLocal(_dragPoint);
+      sys.dragNode(drag.id, _dragPoint.x, _dragPoint.z);
+      obj.position.set(_dragPoint.x, DRAG_LIFT, _dragPoint.z);
+      drag.check = dragCheck(drag.id, _dragPoint.x, _dragPoint.z);
+      if (Math.hypot(_dragPoint.x - drag.routedAt.x, _dragPoint.z - drag.routedAt.z) > DRAG_REROUTE) {
+        drag.routedAt = { x: _dragPoint.x, z: _dragPoint.z };
+        const footprints = new Map([...build.objects].map(([id, o]) => [id, o.userData.footprintRadius]));
+        build.links.sync(sys, { table: state.table, footprints });
+      }
+    }
+  }
+  return obj; // highlightAssets draws its ring: white = can drop here, orange = goes back
+}
+
+// Trigger (or mouse) up. Ends a drag if there is one; returns true if it did.
+function pressEnd() {
+  build.press = null;
+  const drag = build.drag;
+  if (!drag) return false;
+  build.drag = null;
+  build.dragEndedAt = performance.now();
+  const sys = build.system, node = sys.node(drag.id);
+  const obj = build.objects.get(drag.id);
+  if (obj) {
+    obj.position.y = 0;
+    obj.userData.ringMat.color.setHex(drag.ringColour);
+  }
+  if (!node) return true;
+  const check = dragCheck(drag.id, node.x, node.z);
+  if (check.ok && sys.moveNode(drag.id, node.x, node.z, drag.start)) {
+    info('Asset moved', { asset: sys.labelOf(node), x: r3(node.x), z: r3(node.z) });
+    say(`Moved the ${sys.labelOf(node)}`);
+  } else {
+    sys.dragNode(drag.id, drag.start.x, drag.start.z);
+    if (!check.ok) say(`Can't go there (${check.reason}): the ${sys.labelOf(node)} went back`, 'warn');
+  }
+  syncScene();
+  return true;
+}
+
+// True for the 'select' that comes with or just after a drop: it is not a click.
+function swallowSelect() {
+  if (build.drag) { pressEnd(); return true; }
+  build.press = null;
+  return performance.now() - build.dragEndedAt < 300;
+}
+
+function onSelectStart(e) { pressStart(e?.inputSource); }
+function onSelectEnd() { if (buildActive()) pressEnd(); }
+
 function buildTrigger(src) {
   if (!acceptInput(src, 'pinch')) return;
   const now = performance.now();
@@ -2010,8 +2138,9 @@ function buildStep(time, frame, pose) {
   // What the controller points at: an asset, or a point on the table.
   const src = pickActiveSource();
   const aim = src ? calib.sources.get(src).aim : null;
-  const hoverObj = aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
-  build.hovered = hoverObj ? hoverObj.userData.nodeId : null;
+  const dragObj = dragStep(aim);
+  const hoverObj = dragObj ?? (aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
+  build.hovered = hoverObj && !dragObj ? hoverObj.userData.nodeId : null;
   let end = null;
   if (hoverObj) end = hoverObj.localToWorld(_a.copy(hoverObj.userData.pickCentre));
   else if (aim?.point) end = aim.point;
@@ -2036,10 +2165,11 @@ function buildStep(time, frame, pose) {
   // HUD
   const sys = build.system;
   let line1;
-  if (performance.now() < build.messageUntil) line1 = build.message;
+  if (build.drag) line1 = dragLine();
+  else if (performance.now() < build.messageUntil) line1 = build.message;
   else if (build.scan || build.tap) line1 = 'Reading the card colour…';
   else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
-  else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
+  else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select, hold to move`;
   else if (!sys?.nodes.length) line1 = 'Point at a card, press trigger to add it';
   else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on a card = add`;
   const camNote = state.features['camera-access'] ? '' : 'no camera: no scanning · ';
@@ -2051,11 +2181,24 @@ function highlightAssets(time) {
   const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
   for (const [id, obj] of build.objects) {
     const { ring, ringMat } = obj.userData;
+    if (id === build.drag?.id) {
+      ringMat.color.set(build.drag.check.ok ? '#ffffff' : '#ffa040');
+      ringMat.opacity = 1;
+      ring.scale.setScalar(1.2);
+      continue;
+    }
     const sel = id === build.selected, hov = id === build.hovered;
     ringMat.opacity = sel ? 0.7 + 0.3 * pulse : hov ? 1 : 0.5;
     ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
   }
   animatePortArrows(build.objects.values(), time);
+}
+
+// HUD line while dragging.
+function dragLine() {
+  const sys = build.system, node = sys.node(build.drag.id);
+  const what = node ? sys.labelOf(node) : 'asset';
+  return build.drag.check.ok ? `Moving the ${what}: let go to drop it` : `Moving the ${what}: ${build.drag.check.reason}, it would go back`;
 }
 
 // Demo scene: the diorama is all there is; only recalibration.
@@ -2288,6 +2431,7 @@ function manualDone() {
 
 // Short bumper press (Backspace / "Undo" on a screen): cancel, back to editing, or undo.
 function manualBack() {
+  if (build.drag) return; // rotating while dragging comes with AR-13 step 3
   const sys = build.system;
   const action = bumperAction(manual.phase, build.selected !== null, sys?.lastStepKind() ?? null);
   if (action === 'clear-selection') {
@@ -2321,14 +2465,15 @@ function manualStep(time) {
 
   // What the ray points at: a palette tile, a placed asset (connecting), or the table.
   const aim = currentAim();
-  const tileObj = aim ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
-  const assetObj = !tileObj && aim && build.objects.size
-    ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
+  const dragObj = dragStep(aim);
+  const tileObj = aim && !dragObj ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
+  const assetObj = dragObj ?? (!tileObj && aim && build.objects.size
+    ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
   manual.hoverTile = tileObj;
-  build.hovered = assetObj ? assetObj.userData.nodeId : null;
+  build.hovered = assetObj && !dragObj ? assetObj.userData.nodeId : null;
   const local = aim?.point && !tileObj && !assetObj ? tableAnchor.worldToLocal(_c.copy(aim.point)) : null;
   // The ghost shows only when a trigger here would place an asset.
-  const placing = manual.phase === 'edit' && build.selected === null;
+  const placing = manual.phase === 'edit' && build.selected === null && !dragObj;
   const check = local && placing ? placeCheck(local) : null;
 
   // Laser, cursor and ghost.
@@ -2364,7 +2509,8 @@ function manualStep(time) {
   const label = (type) => components.config.assets[type]?.label ?? type;
   let line1, line2;
   const open = sys.openPorts().length;
-  if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
+  if (build.drag) line1 = dragLine();
+  else if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
   else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
   else if (tile?.kind === 'done') line1 = n ? `Done: ${press()} to check the open ports` : 'Place at least one asset first';
   else if (build.selected !== null) {
@@ -2374,7 +2520,7 @@ function manualStep(time) {
       : `${first} selected: ${press()} on a second asset`;
   } else if (build.hovered !== null) {
     const node = sys.node(build.hovered), ports = portSummary(node);
-    line1 = `${sys.labelOf(node)}: ${press()} to connect${ports ? ' · ' + ports : ''}`;
+    line1 = `${sys.labelOf(node)}: ${press()} to connect, hold to move${ports ? ' · ' + ports : ''}`;
   } else if (manual.phase === 'done') {
     line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}${open ? `, ${plural(open, 'open port')}` : ''}`;
   } else if (check && !check.ok) line1 = check.reason;
@@ -2386,10 +2532,10 @@ function manualStep(time) {
     line2 = desk ? 'click the table or Undo = cancel · a connected pair again = disconnect'
       : 'trigger on the table or bumper = cancel · a connected pair again = disconnect';
   } else {
-    line2 = desk ? `${plural(n, 'asset')}, ${plural(m, 'connection')} · tile = asset · asset, asset = connect · drag to turn the view`
-      : `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · bumper = undo · hold = recalibrate`;
+    line2 = desk ? `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · drag an asset = move it · drag elsewhere = turn the view`
+      : `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · hold trigger = move · bumper = undo`;
   }
-  if (performance.now() < build.messageUntil) line1 = build.message;
+  if (performance.now() < build.messageUntil && !build.drag) line1 = build.message;
   setHud(line1, line2);
 }
 
@@ -2968,6 +3114,7 @@ function gazeStep(frame, refSpace) {
 }
 
 function onSelect(e) {
+  if (buildActive() && swallowSelect()) return; // the end of a drag, not a click
   if (toggleLabelAt(e)) return; // pointing at an asset name: that wins over everything else
   if (state.mode === 'corners') {
     if (!calib.done) placeCorner(e?.inputSource);
@@ -3250,6 +3397,8 @@ async function startAR(requested) {
   }
 
   session.addEventListener('select', onSelect);
+  session.addEventListener('selectstart', onSelectStart);
+  session.addEventListener('selectend', onSelectEnd);
   session.addEventListener('squeeze', onSqueeze);
   session.addEventListener('squeezestart', onSqueezeStart);
   session.addEventListener('squeezeend', onSqueezeEnd);
@@ -3511,7 +3660,24 @@ async function startPreview() {
     };
     canvas.addEventListener('pointermove', pointAt);
     canvas.addEventListener('pointerleave', () => { preview.ndc = null; });
+    // Press on an asset: hold (or move the mouse) to drag it; the view doesn't turn meanwhile.
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      pointAt(e);
+      preview.aim = previewAim();
+      manualStep(performance.now());
+      pressStart(null);
+      if (build.press && controls) controls.enabled = false;
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (build.press && !build.drag && dragged(e)) startDrag(build.press.id);
+    });
+    window.addEventListener('pointerup', () => {
+      pressEnd();
+      if (controls) controls.enabled = true;
+    });
     canvas.addEventListener('click', (e) => {
+      if (swallowSelect()) return; // the end of a drag
       if (dragged(e)) return;
       // Aim exactly where the click is (a tap or touchpad click may come without a move).
       pointAt(e);
