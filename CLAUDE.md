@@ -81,5 +81,10 @@ Data in `assets/`:
 
 When a major task is finished (a feature merged, a headset test done, a direction
 decided), update notes/PROGRESS.md in the same change: move items between Todo / In progress /
-Done, add a dated line to the log, and adjust the roadmap. Keep this file (CLAUDE.md) for
+Done, add a dated line to the log, and adjust the roadmap.
+
+Every task has an id `AR-<number>`. A new task takes the "Next free id" noted in
+notes/PROGRESS.md, and that note is bumped in the same change. Ids are never reused or
+renumbered, and a task keeps its id in Done. Put the id in branch names and commit
+messages (`ar-3-yaml-export`, "AR-3: ..."). Keep this file (CLAUDE.md) for
 things that stay true; put status in notes/PROGRESS.md.
