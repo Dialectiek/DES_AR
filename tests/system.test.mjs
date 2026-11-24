@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLink, EnergySystem, colourForType } from '../system.js';
+import { resolveLink, EnergySystem, colourForType, quarterTurn, snapToQuarter, SAVE_FORMAT } from '../system.js';
 
 const assets = {
   turbine: { label: 'Turbine', produces: ['electricity'], consumes: [], power_kW: 5 },
@@ -139,4 +139,141 @@ test('colourForType: the card colour mapped to an asset, or null', () => {
   assert.equal(colourForType(config, 'car'), 'orange');
   assert.equal(colourForType(config, 'battery'), null);
   assert.equal(colourForType({}, 'car'), null);
+});
+
+test('moveNode is one undoable step; dragNode moves without a step', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  sys.dragNode(t.id, 0.15, -0.1);
+  sys.dragNode(t.id, 0.2, 0.05);
+  assert.equal(sys.lastStepKind(), 'add'); // dragging leaves no steps
+  assert.equal(sys.moveNode(t.id, 0.25, 0.05, { x: 0.1, z: -0.2 }), true);
+  assert.deepEqual([t.x, t.z], [0.25, 0.05]);
+  assert.equal(sys.lastStepKind(), 'move');
+  assert.equal(sys.undo(), 'moved the Turbine back');
+  assert.deepEqual([t.x, t.z], [0.1, -0.2]);
+  assert.equal(sys.lastStepKind(), 'add');
+});
+
+test('moveNode: no step when the asset ends where it started, or is missing', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  sys.dragNode(t.id, 0.3, 0.3);
+  assert.equal(sys.moveNode(t.id, 0.1, -0.2, { x: 0.1, z: -0.2 }), false);
+  assert.deepEqual([t.x, t.z], [0.1, -0.2]);
+  assert.equal(sys.lastStepKind(), 'add');
+  assert.equal(sys.moveNode(999, 0, 0), false);
+  assert.equal(sys.dragNode(999, 0, 0), null);
+});
+
+test('undo of a move whose asset was undone meanwhile is harmless', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0, 0);
+  sys.moveNode(t.id, 0.2, 0);
+  sys.nodes = []; // as if removed by something else
+  assert.equal(sys.undo(), 'nothing to move back');
+});
+
+test('quarterTurn: 90° steps, kept in (-π, π]', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} vs ${b}`);
+  close(quarterTurn(0), Math.PI / 2);
+  close(quarterTurn(Math.PI / 2), Math.PI);
+  close(quarterTurn(Math.PI), -Math.PI / 2);
+  close(quarterTurn(0, -1), -Math.PI / 2);
+  close(quarterTurn(-Math.PI / 2, -1), Math.PI);
+  close(quarterTurn(undefined), Math.PI / 2);
+  close(quarterTurn(0.3), 0.3 + Math.PI / 2); // a free angle keeps its offset
+  let y = 0.3;
+  for (let i = 0; i < 4; i++) y = quarterTurn(y);
+  close(y, 0.3); // four turns = back where it was
+});
+
+test('moveNode with a yaw: a turn in place is one step, undone as a turn', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  t.yaw = 0; // the scene sets it when the asset appears
+  sys.dragNode(t.id, 0.1, -0.2, Math.PI / 2);
+  assert.equal(t.yaw, Math.PI / 2);
+  assert.equal(sys.moveNode(t.id, 0.1, -0.2, { x: 0.1, z: -0.2, yaw: 0 }, Math.PI / 2), true);
+  assert.equal(sys.undo(), 'turned the Turbine back');
+  assert.equal(t.yaw, 0);
+  // moved and turned: undo restores both
+  sys.moveNode(t.id, 0.3, 0, null, Math.PI);
+  assert.equal(sys.undo(), 'moved the Turbine back');
+  assert.deepEqual([t.x, t.z, t.yaw], [0.1, -0.2, 0]);
+  // same place, same yaw: no step
+  assert.equal(sys.moveNode(t.id, 0.1, -0.2, null, 0), false);
+});
+
+test('snapToQuarter: the nearest of 0, ±90°, 180°', () => {
+  assert.equal(snapToQuarter(0.2), 0);
+  assert.equal(snapToQuarter(1.2), Math.PI / 2);
+  assert.equal(snapToQuarter(-1.2), -Math.PI / 2);
+  assert.equal(snapToQuarter(3.0), Math.PI);
+  assert.equal(snapToQuarter(-3.0), Math.PI);
+  assert.equal(snapToQuarter(7.0), 0); // 7 rad ≈ 401° → 0
+  assert.equal(snapToQuarter(), 0);
+});
+
+test('planConnect says what connect would do, and changes nothing', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0, 0);
+  const c = sys.addNode('car', 0.2, 0);
+  const t2 = sys.addNode('turbine', 0.4, 0);
+  const before = JSON.stringify([sys.links, sys.history, sys.nextId]);
+  const plan = sys.planConnect(t.id, c.id);
+  assert.equal(plan.action, 'add');
+  assert.deepEqual(plan.links.map((l) => [l.carrier, l.from, l.to]), [['electricity', t.id, c.id]]);
+  assert.equal(plan.links[0].id, undefined);
+  assert.equal(sys.planConnect(t.id, t2.id).action, 'refused');
+  assert.match(sys.planConnect(t.id, t2.id).reason, /can't be connected/);
+  assert.equal(sys.planConnect(t.id, t.id).action, 'refused');
+  assert.equal(JSON.stringify([sys.links, sys.history, sys.nextId]), before);
+  sys.connect(t.id, c.id);
+  assert.equal(sys.planConnect(c.id, t.id).action, 'remove');
+});
+
+test('toJSON → load gives the same system, with an empty history and fresh ids', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  t.yaw = Math.PI / 2;
+  const c = sys.addNode('car', -0.3, 0.1, 'orange');
+  sys.connect(t.id, c.id);
+  const saved = JSON.parse(JSON.stringify(sys.toJSON()));
+  assert.equal(saved.format, SAVE_FORMAT);
+
+  const other = new EnergySystem(config);
+  other.addNode('house', 0, 0);
+  const r = other.load(saved);
+  assert.deepEqual(r, { nodes: 2, links: 1, skipped: [] });
+  assert.deepEqual(other.nodes, sys.nodes);
+  assert.deepEqual(other.links, sys.links);
+  assert.equal(other.lastStepKind(), null);
+  const n = other.addNode('house', 0.3, 0.3);
+  assert.ok(n.id > Math.max(...sys.nodes.map((x) => x.id), ...sys.links.map((l) => l.id)));
+  // the save is a copy: changing the loaded system leaves the save alone
+  other.nodes[0].x = 9;
+  assert.equal(saved.nodes[0].x, 0.1);
+});
+
+test('load leaves out unknown assets and their links, and refuses non-saves', () => {
+  const sys = new EnergySystem(config);
+  const data = {
+    format: SAVE_FORMAT, version: 1,
+    nodes: [
+      { id: 1, type: 'turbine', colour: null, x: 0, z: 0 },
+      { id: 2, type: 'spaceship', colour: null, x: 0.2, z: 0 },
+      { id: 3, type: 'car', colour: null, x: 0.4, z: 0 },
+    ],
+    links: [
+      { id: 4, carrier: 'electricity', from: 1, to: 2 },
+      { id: 5, carrier: 'electricity', from: 1, to: 3 },
+    ],
+  };
+  const r = sys.load(data);
+  assert.equal(r.nodes, 2);
+  assert.equal(r.links, 1);
+  assert.deepEqual(r.skipped, ['unknown asset "spaceship"', 'a connection to a missing asset']);
+  assert.throws(() => sys.load({ nodes: [] }), /not a saved energy system/);
+  assert.throws(() => sys.load(null), /not a saved energy system/);
 });

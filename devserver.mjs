@@ -5,6 +5,10 @@
 //   node devserver.mjs 8080       (other port)
 //
 // It serves this folder and receives log lines from the headset at POST /log.
+// Saved energy systems (the Save / Load buttons in manual mode) go to saves/:
+//   POST /saves        body = the system's JSON (≤ 1 MB) → saves/<date>_<time>.json
+//   GET  /saves        the list, newest first: [{ name, savedAt, assets, connections }]
+//   GET  /saves/<name> one save (served as a static file)
 // Every line is printed here and appended to xr-log.txt, so the log survives
 // the headset browser crashing.
 //
@@ -23,6 +27,30 @@ const LOG_FILE = path.join(ROOT, 'xr-log.txt');
 // port that is NOT forwarded through a public tunnel: it lets the page write files.
 const ALLOW_SAVE = process.argv.includes('--allow-save');
 const MODELS_DIR = path.join(ROOT, 'assets', 'models');
+const SAVES_DIR = path.join(ROOT, 'saves');
+const SAVE_FORMAT = 'tablecube-energy-system'; // system.js SAVE_FORMAT
+const MAX_SAVES = 500;
+
+function listSaves() {
+  let names = [];
+  try { names = fs.readdirSync(SAVES_DIR).filter((n) => /^[\w-]+\.json$/.test(n)); } catch { return []; }
+  return names.sort().reverse().map((name) => {
+    try {
+      const d = JSON.parse(fs.readFileSync(path.join(SAVES_DIR, name), 'utf8'));
+      return { name, savedAt: d.savedAt ?? null, assets: d.nodes?.length ?? 0, connections: d.links?.length ?? 0 };
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+function saveName(now = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  const base = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}-${p(now.getMinutes())}-${p(now.getSeconds())}`;
+  let name = base + '.json', i = 2;
+  while (fs.existsSync(path.join(SAVES_DIR, name))) name = `${base}_${i++}.json`;
+  return name;
+}
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -98,6 +126,41 @@ const server = http.createServer((req, res) => {
       console.log(`Saved assets/models/${name} (${size} bytes)`);
       res.writeHead(204);
       res.end();
+    });
+    return;
+  }
+
+  if (url.pathname === '/saves' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(listSaves()));
+    return;
+  }
+
+  if (url.pathname === '/saves' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 1_000_000) req.destroy();
+    });
+    req.on('end', () => {
+      let data;
+      try { data = JSON.parse(body); } catch { data = null; }
+      if (data?.format !== SAVE_FORMAT || !Array.isArray(data.nodes)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Not a saved energy system');
+        return;
+      }
+      fs.mkdirSync(SAVES_DIR, { recursive: true });
+      if (fs.readdirSync(SAVES_DIR).length >= MAX_SAVES) {
+        res.writeHead(507, { 'Content-Type': 'text/plain' });
+        res.end(`Too many saves (${MAX_SAVES}): clean up saves/`);
+        return;
+      }
+      const name = saveName();
+      fs.writeFileSync(path.join(SAVES_DIR, name), JSON.stringify(data, null, 2));
+      console.log(`Saved saves/${name} (${data.nodes.length} assets)`);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ name }));
     });
     return;
   }

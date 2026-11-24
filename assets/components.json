@@ -13,7 +13,7 @@
     "gray": null,
     "brown": null
   },
-  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m. Illuminator Pipelines have no asset: a hydrogen connection is drawn as a tube instead.",
+  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset with \"palette\": false is not on the palette (it stays for cards mode, saves and the export). An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m. Illuminator Pipelines have no asset: a hydrogen connection is drawn as a tube instead.",
   "paletteGroups": [
     { "key": "electricity", "label": "Electricity", "colour": "#ffe14d" },
     { "key": "loads", "label": "Loads", "colour": "#ff9a6b" },
@@ -23,6 +23,7 @@
   ],
   "assets": {
     "house-pv": {
+      "palette": false,
       "label": "House with PV",
       "model": "assets/models/house-pv.glb",
       "size_m": 0.16,
@@ -47,6 +48,7 @@
       "power_kW": 22.4
     },
     "wind-turbine": {
+      "palette": false,
       "label": "Wind turbine",
       "model": "assets/figures/wind-turbine.glb",
       "size_m": 0.12,
@@ -57,6 +59,7 @@
       "power_kW": 5
     },
     "solar-battery": {
+      "palette": false,
       "label": "Solar battery",
       "model": "assets/figures/solar-battery.glb",
       "size_m": 0.1,
@@ -69,6 +72,7 @@
       "power_kW": 3
     },
     "power-box": {
+      "palette": false,
       "label": "Power box",
       "model": "assets/figures/power-box.glb",
       "size_m": 0.1,
@@ -80,6 +84,7 @@
       "power_kW": 10
     },
     "greenhouse": {
+      "palette": false,
       "label": "Greenhouse",
       "model": "assets/figures/greenhouse.glb",
       "size_m": 0.14,
@@ -91,6 +96,7 @@
       "power_kW": 4
     },
     "car": {
+      "palette": false,
       "label": "Car",
       "model": "assets/figures/car.glb",
       "size_m": 0.12,
@@ -401,6 +407,7 @@
       "power_kW": 20
     },
     "Collector": {
+      "palette": false,
       "label": "Data collector",
       "group": "other",
       "illuminator": "Collector",
@@ -435,6 +442,8 @@
       "style": "cable"
     }
   },
+  "about_assetScale": "Every asset model on the table (manual and cards mode) is drawn at size_m x assetScale. Lower it to make room on the table; ?assetScale= in the URL overrides it. The palette tiles keep their own size.",
+  "assetScale": 0.65,
   "tableWhite": "#f0f0f0",
   "colours": {
     "red": {

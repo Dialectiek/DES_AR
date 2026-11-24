@@ -69,7 +69,8 @@ function normalise(scene, sizeM) {
 
 // Loads every model used by an asset in the config. Failed models are logged and
 // replaced by the placeholder later. Returns Map(assetKey → { object, height }).
-export async function preloadModels(config, log, { emissive = 0.35 } = {}) {
+// scale: multiplies every asset's size_m (components.json assetScale).
+export async function preloadModels(config, log, { emissive = 0.35, scale = 1 } = {}) {
   const loader = new GLTFLoader();
   const templates = new Map();
   await Promise.all(Object.entries(config.assets).map(async ([key, def]) => {
@@ -77,7 +78,7 @@ export async function preloadModels(config, log, { emissive = 0.35 } = {}) {
     try {
       const gltf = await loader.loadAsync(def.model);
       liftMaterials(gltf.scene, emissive);
-      const t = normalise(gltf.scene, def.size_m ?? 0.12);
+      const t = normalise(gltf.scene, (def.size_m ?? 0.12) * scale);
       templates.set(key, t);
       log.info(`Model loaded: ${key}`, { height_m: +t.height.toFixed(3) });
     } catch (err) {

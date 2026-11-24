@@ -43,7 +43,10 @@ test('every Illuminator component type has at least one asset', () => {
 test('palette pages: in order, none too long for one table edge', () => {
   const pages = paletteGroups(config);
   assert.deepEqual(pages.map((p) => p.key), ['electricity', 'loads', 'hydrogen', 'pipes', 'other']);
-  assert.equal(pages.reduce((n, p) => n + p.types.length, 0), Object.keys(assets).length);
+  // Every asset is on one page, except those marked "palette": false.
+  const onPalette = Object.keys(assets).filter((k) => assets[k].palette !== false);
+  assert.equal(pages.reduce((n, p) => n + p.types.length, 0), onPalette.length);
+  assert.deepEqual(pages.at(-1).types, ['office-pv', 'banana-car']);
   for (const p of pages) assert.ok(p.types.length <= 12, `${p.key} has ${p.types.length} assets`);
 });
 

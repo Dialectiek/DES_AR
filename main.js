@@ -36,12 +36,13 @@ import {
   dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex, describeColour,
   worldToPixel, samplePatch, nearestColour, balanceColour, alignProjection, sampleSlots, pixelShiftToNdc,
 } from './cards.js';
-import { EnergySystem, colourForType } from './system.js';
+import { createSounds } from './sound.js';
+import { quarterTurn, snapToQuarter, EnergySystem, colourForType } from './system.js';
 import {
   loadComponents, preloadModels, makeAssetObject, disposeAssetObject, faceTowards, pickAsset, displayColour,
 } from './assets.js';
 import { LinkView } from './links.js';
-import { insideTable, backAction } from './manual.js';
+import { insideTable, bumperAction } from './manual.js';
 import { createPalette } from './palette.js';
 import { SCHEMAS_URL } from './schema.js';
 import { addPortArrows, setPortStatus, animatePortArrows, createModelPanel } from './ports-view.js';
@@ -104,6 +105,13 @@ const logLines = [];
 // When the page is served by devserver.mjs, every log line is also sent to the laptop.
 // That is the only log that survives the whole browser crashing.
 const remote = { enabled: false, probing: true, queue: [], seq: 0 };
+
+// Feedback sounds (sound.js). Off with ?sound=0 or the screen toolbar's sound button.
+const SOUND_KEY = 'tablecube-sound-v1';
+const sounds = createSounds({
+  enabled: params.get('sound') !== '0' && (() => { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; } })(),
+});
+const sfx = (name) => sounds.play(name);
 let previousLog = [];
 const logListEl = document.getElementById('log-list');
 const logState = { dirty: true };
@@ -179,7 +187,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'ports v3';
+const APP_VERSION = 'qol v6';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -586,7 +594,10 @@ components.ready = (async () => {
     });
     const unmapped = Object.entries(config.cards).filter(([, t]) => t === null).map(([c]) => c);
     if (unmapped.length) info('Card colours without an asset (shown as placeholder cubes)', unmapped);
-    components.templates = await preloadModels(config, { info, warn });
+    components.assetScale = params.has('assetScale') ? parseFloat(params.get('assetScale')) : (config.assetScale ?? 1);
+    if (!(components.assetScale > 0)) components.assetScale = 1;
+    components.templates = await preloadModels(config, { info, warn }, { scale: components.assetScale });
+    info('Asset scale', components.assetScale);
   } catch (err) {
     components.error = errText(err);
     error('Could not load the components', components.error);
@@ -1423,6 +1434,7 @@ function makeDynamicLine(maxPoints, color, parent = calibGroup) {
 }
 const laser = makeDynamicLine(2, 0xffffff);
 const cornerEdges = makeDynamicLine(6, 0xffd60a);
+const linkBand = makeDynamicLine(2, 0xffd60a); // live link preview (linkBandStep)
 
 const cursorMat = new THREE.MeshBasicMaterial({ color: CORNER_COLOURS[0], side: THREE.DoubleSide });
 const aimCursor = new THREE.Group();
@@ -1605,6 +1617,7 @@ function finishCalibration() {
   tableAnchor.visible = true;
   laser.set([]);
   cornerEdges.set([]);
+  linkBand.set([]);
   aimCursor.visible = false;
   info('Table calibrated', {
     centre: [r.cx, r.y, r.cz].map((v) => +v.toFixed(3)),
@@ -1647,7 +1660,10 @@ function bumperDown(src, via) {
   bumper.down = true;
   bumper.at = now;
   bumper.fired = false;
-  if (!calib.done) {
+  if (build.drag) { // holding an asset: a quarter turn, at once (no undo, no recalibration)
+    bumper.fired = true;
+    turnHeld();
+  } else if (!calib.done) {
     bumper.fired = true;
     undoCorner();
   } else if (!colourCal.done) { // colour squares: back to the last corner
@@ -1729,6 +1745,10 @@ const build = {
   lastTime: 0,
   lastTrigger: 0,
   version: 0,            // bumped by syncScene: the info panel redraws when it changes
+  press: null,           // { id, at } trigger held down on an asset (may become a drag)
+  drag: null,            // { id, start: {x, z}, check, routedAt: {x, z} } while moving an asset
+  dragEndedAt: 0,        // the 'select' that follows a drop is not a click
+  plan: null,            // planConnect() for the selected and the hovered asset (link preview)
 };
 
 function say(text, level = 'info') {
@@ -1764,10 +1784,22 @@ function syncScene() {
   if (sys) {
     const head = headInTable();
     for (const node of sys.nodes) {
-      if (build.objects.has(node.id)) continue;
+      const known = build.objects.get(node.id);
+      if (known) { // moved or turned (drag, move, undo): follow the node
+        known.position.x = node.x;
+        known.position.z = node.z;
+        if (node.yaw !== undefined) known.rotation.y = node.yaw;
+        continue;
+      }
       const obj = makeAssetObject(node, components.config, components.templates);
       addPortArrows(obj, sys.portsOf(node)); // one floor arrow per Illuminator input / output
-      faceTowards(obj, head);
+      // A new asset faces the user; from then on its turn is kept in the node (yaw).
+      // Snapped to a quarter turn, so it lines up with the table edges and the cables.
+      if (node.yaw === undefined) {
+        faceTowards(obj, head);
+        node.yaw = snapToQuarter(obj.rotation.y);
+      }
+      obj.rotation.y = node.yaw;
       tableAnchor.add(obj);
       build.objects.set(node.id, obj);
     }
@@ -1789,10 +1821,12 @@ function resetBuild() {
   build.selected = null;
   build.hovered = null;
   cornerEdges.set([]);
+  linkBand.set([]);
   resetManual();
 }
 
 function undoBuild() {
+  if (build.drag) { turnHeld(); return; }
   if (build.selected !== null) {
     build.selected = null;
     say('Selection cleared');
@@ -1801,6 +1835,7 @@ function undoBuild() {
   const what = build.system?.undo();
   syncScene();
   say(what ? 'Undo: ' + what : 'Nothing to undo');
+  sfx(what ? 'undo' : 'refused');
 }
 
 function startScan() {
@@ -1909,6 +1944,7 @@ function finishScan() {
   syncScene();
   if (added.length) {
     say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')}`);
+    sfx('place');
   } else if (cards.length) {
     say(`No new cards (${cards.length} already placed)`);
   } else {
@@ -1922,6 +1958,7 @@ function clickAsset(id) {
   if (build.selected === null) {
     build.selected = id;
     say(`${sys.labelOf(node)} selected: now click a second asset`);
+    sfx('pick');
     return;
   }
   if (build.selected === id) {
@@ -1937,13 +1974,163 @@ function clickAsset(id) {
     const end = (id, port) => sys.labelOf(sys.node(id)) + (port ? '.' + port : '');
     const parts = r.links.map((l) => `${l.carrier}${l.model ? ' ' + l.model : ''} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`);
     say('Connected: ' + parts.join(', '));
+    sfx('connect');
     info('Connected', r.links.map((l) => ({ carrier: l.carrier, model: l.model, from: end(l.from, l.fromPort), to: end(l.to, l.toPort), params: l.params })));
   } else if (r.action === 'removed') {
     say(`Disconnected ${sys.labelOf(first)} and ${sys.labelOf(node)}`);
+    sfx('disconnect');
   } else {
     say('Not connected: ' + r.reason, 'warn');
+    sfx('refused');
   }
 }
+
+// ---- Moving assets (manual and cards mode) -------------------------------------
+// Hold the trigger on an asset (DRAG_HOLD_MS) to pick it up: it follows the ray over the
+// table, its cables re-route, and letting go drops it (one undoable step, moveNode).
+// A drop where an asset can't go (off the table, too close to another) puts it back.
+// A short press on an asset stays a click (connect). On a screen, pressing the mouse on
+// an asset and moving it starts the drag at once.
+const DRAG_HOLD_MS = 400;
+const DRAG_LIFT = 0.015;     // metres the dragged asset floats above the table
+const DRAG_REROUTE = 0.004;  // re-route the cables after this much movement (metres)
+
+function buildActive() {
+  const corners = state.mode === 'corners' || preview.active; // the screen preview skips the setup
+  return corners && calib.done && colourCal.done && (state.build === 'manual' || state.build === 'cards');
+}
+
+// Can the dragged asset `id` go at table-local (x, z)? { ok, reason }
+function dragCheck(id, x, z) {
+  const t = state.table;
+  if (!insideTable(x, z, t.length, t.width)) return { ok: false, reason: 'off the table' };
+  const sys = build.system;
+  const near = sys.nodes.find((n) => n.id !== id && Math.hypot(n.x - x, n.z - z) < MANUAL_MIN_GAP);
+  if (near) return { ok: false, reason: `too close to the ${sys.labelOf(near)}` };
+  return { ok: true };
+}
+
+// Trigger (or mouse) down: remember the asset under the ray; the frame loop turns a long
+// enough hold into a drag.
+function pressStart(src) {
+  if (!buildActive() || build.drag || build.hovered === null) return;
+  if (src && !acceptInput(src, 'pinch')) return;
+  if (src && calib.sources.has(src)) calib.active = src;
+  build.press = { id: build.hovered, at: performance.now() };
+}
+
+function startDrag(id) {
+  const sys = build.system, node = sys?.node(id), obj = build.objects.get(id);
+  build.press = null;
+  if (!node || !obj) return;
+  if (build.selected === id) build.selected = null;
+  build.drag = {
+    id, start: { x: node.x, z: node.z, yaw: node.yaw }, check: { ok: true }, routedAt: { x: node.x, z: node.z },
+    ringColour: obj.userData.ringMat.color.getHex(), // the ring shows white / orange while dragging
+  };
+  obj.position.y = DRAG_LIFT;
+  manual.palette?.hideGhost();
+  info('Drag started', { asset: sys.labelOf(node), id });
+  say(`Moving the ${sys.labelOf(node)}: let go to drop it, ${preview.active ? 'R' : 'bumper'} = turn`);
+  sfx('lift');
+}
+
+// Bumper (R or Backspace on a screen) while holding an asset: a quarter turn. Its floor
+// arrows turn with it; the drop makes the move and the turn one undo step.
+function turnHeld(dir = 1) {
+  const drag = build.drag, sys = build.system;
+  const node = drag && sys.node(drag.id), obj = drag && build.objects.get(drag.id);
+  if (!node || !obj) return;
+  sys.dragNode(node.id, node.x, node.z, quarterTurn(node.yaw, dir));
+  obj.rotation.y = node.yaw;
+  drag.turns = (drag.turns ?? 0) + 1;
+  sfx('turn');
+  info('Asset turned', { asset: sys.labelOf(node), yaw_deg: Math.round((node.yaw * 180) / Math.PI) });
+}
+
+const _dragPoint = new THREE.Vector3();
+const _tableWorld = new THREE.Vector3();
+// Every frame (manual and cards step): turns a long press into a drag, and moves the
+// dragged asset to where the ray meets the table plane. Returns the dragged object or null.
+// Where the ray meets the table plane, table-local (into `out`), or null.
+function rayOnTable(aim, out) {
+  tableAnchor.getWorldPosition(_tableWorld);
+  const t = aim.dir.y < -1e-3 ? (_tableWorld.y - aim.origin.y) / aim.dir.y : -1;
+  if (!(t > 0 && t < 5)) return null;
+  out.copy(aim.origin).addScaledVector(aim.dir, t);
+  return tableAnchor.worldToLocal(out);
+}
+
+function dragStep(aim) {
+  const now = performance.now();
+  if (build.press && !build.drag && now - build.press.at > DRAG_HOLD_MS) startDrag(build.press.id);
+  const drag = build.drag;
+  if (!drag) return null;
+  const sys = build.system, obj = build.objects.get(drag.id);
+  if (!obj || !sys.node(drag.id)) {
+    build.drag = null;
+    return null;
+  }
+  if (aim) {
+    // The ray on the table plane (not a hit-test point: that could land on the asset),
+    // plus where on the asset it was grabbed, so picking it up doesn't make it jump.
+    if (rayOnTable(aim, _dragPoint)) {
+      if (!drag.grab) drag.grab = { x: drag.start.x - _dragPoint.x, z: drag.start.z - _dragPoint.z };
+      _dragPoint.x += drag.grab.x;
+      _dragPoint.z += drag.grab.z;
+      sys.dragNode(drag.id, _dragPoint.x, _dragPoint.z);
+      obj.position.set(_dragPoint.x, DRAG_LIFT, _dragPoint.z);
+      drag.check = dragCheck(drag.id, _dragPoint.x, _dragPoint.z);
+      if (Math.hypot(_dragPoint.x - drag.routedAt.x, _dragPoint.z - drag.routedAt.z) > DRAG_REROUTE) {
+        drag.routedAt = { x: _dragPoint.x, z: _dragPoint.z };
+        const footprints = new Map([...build.objects].map(([id, o]) => [id, o.userData.footprintRadius]));
+        build.links.sync(sys, { table: state.table, footprints });
+      }
+    }
+  }
+  return obj; // highlightAssets draws its ring: white = can drop here, orange = goes back
+}
+
+// Trigger (or mouse) up. Ends a drag if there is one; returns true if it did.
+function pressEnd() {
+  build.press = null;
+  const drag = build.drag;
+  if (!drag) return false;
+  build.drag = null;
+  build.dragEndedAt = performance.now();
+  const sys = build.system, node = sys.node(drag.id);
+  const obj = build.objects.get(drag.id);
+  if (obj) {
+    obj.position.y = 0;
+    obj.userData.ringMat.color.setHex(drag.ringColour);
+  }
+  if (!node) return true;
+  const check = dragCheck(drag.id, node.x, node.z);
+  const moved = node.x !== drag.start.x || node.z !== drag.start.z;
+  if (check.ok && sys.moveNode(drag.id, node.x, node.z, drag.start, node.yaw)) {
+    info('Asset moved', { asset: sys.labelOf(node), x: r3(node.x), z: r3(node.z), yaw_deg: Math.round((node.yaw * 180) / Math.PI) });
+    say(`${moved ? 'Moved' : 'Turned'} the ${sys.labelOf(node)}`);
+    sfx('place');
+  } else {
+    sys.dragNode(drag.id, drag.start.x, drag.start.z, drag.start.yaw);
+    if (!check.ok) {
+      say(`Can't go there (${check.reason}): the ${sys.labelOf(node)} went back`, 'warn');
+      sfx('refused');
+    }
+  }
+  syncScene();
+  return true;
+}
+
+// True for the 'select' that comes with or just after a drop: it is not a click.
+function swallowSelect() {
+  if (build.drag) { pressEnd(); return true; }
+  build.press = null;
+  return performance.now() - build.dragEndedAt < 300;
+}
+
+function onSelectStart(e) { pressStart(e?.inputSource); }
+function onSelectEnd() { if (buildActive()) pressEnd(); }
 
 function buildTrigger(src) {
   if (!acceptInput(src, 'pinch')) return;
@@ -1995,6 +2182,7 @@ function tapStep(frame, pose) {
   const added = sys.addCards([{ colour: match.name, x: local.x, z: local.z }]);
   syncScene();
   say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')} (${match.name})`);
+  sfx('place');
 }
 
 const _a = new THREE.Vector3();
@@ -2010,8 +2198,9 @@ function buildStep(time, frame, pose) {
   // What the controller points at: an asset, or a point on the table.
   const src = pickActiveSource();
   const aim = src ? calib.sources.get(src).aim : null;
-  const hoverObj = aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
-  build.hovered = hoverObj ? hoverObj.userData.nodeId : null;
+  const dragObj = dragStep(aim);
+  const hoverObj = dragObj ?? (aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
+  build.hovered = hoverObj && !dragObj ? hoverObj.userData.nodeId : null;
   let end = null;
   if (hoverObj) end = hoverObj.localToWorld(_a.copy(hoverObj.userData.pickCentre));
   else if (aim?.point) end = aim.point;
@@ -2025,10 +2214,7 @@ function buildStep(time, frame, pose) {
     laser.set([]);
     aimCursor.visible = false;
   }
-  // Rubber band from the selected asset to where the controller points.
-  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
-  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
-  else cornerEdges.set([]);
+  linkBandStep(end);
 
   highlightAssets(time);
   build.links?.update(dt);
@@ -2036,10 +2222,11 @@ function buildStep(time, frame, pose) {
   // HUD
   const sys = build.system;
   let line1;
-  if (performance.now() < build.messageUntil) line1 = build.message;
+  if (build.drag) line1 = dragLine();
+  else if (performance.now() < build.messageUntil && !build.plan) line1 = build.message;
   else if (build.scan || build.tap) line1 = 'Reading the card colour…';
-  else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
-  else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select`;
+  else if (build.selected !== null) line1 = linkLine();
+  else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select, hold to move`;
   else if (!sys?.nodes.length) line1 = 'Point at a card, press trigger to add it';
   else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on a card = add`;
   const camNote = state.features['camera-access'] ? '' : 'no camera: no scanning · ';
@@ -2051,11 +2238,64 @@ function highlightAssets(time) {
   const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
   for (const [id, obj] of build.objects) {
     const { ring, ringMat } = obj.userData;
+    if (id === build.drag?.id) {
+      ringMat.color.set(build.drag.check.ok ? '#ffffff' : '#ffa040');
+      ringMat.opacity = 1;
+      ring.scale.setScalar(1.2);
+      continue;
+    }
     const sel = id === build.selected, hov = id === build.hovered;
     ringMat.opacity = sel ? 0.7 + 0.3 * pulse : hov ? 1 : 0.5;
     ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
   }
   animatePortArrows(build.objects.values(), time);
+}
+
+// Live link preview: while a connection is half made, a band runs from the first asset
+// to where the ray points. Over a second asset it shows what the trigger would do
+// (EnergySystem.planConnect): the carrier's colour = connect, white = disconnect,
+// red = refused (the reason is on the HUD, linkLine). end: world point or null.
+const LINK_REFUSED = '#ff4a4a';
+function linkBandStep(end) {
+  build.plan = null;
+  const sys = build.system;
+  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
+  if (!selObj || !end) {
+    linkBand.set([]);
+    return;
+  }
+  let colour = '#ffd60a';
+  if (build.hovered !== null && build.hovered !== build.selected) {
+    const plan = sys.planConnect(build.selected, build.hovered);
+    build.plan = plan;
+    if (plan.action === 'refused') colour = LINK_REFUSED;
+    else if (plan.action === 'remove') colour = '#ffffff';
+    else colour = components.config.carriers?.[plan.links[0].carrier]?.color ?? colour;
+  }
+  linkBand.line.material.color.set(colour);
+  linkBand.set([selObj.localToWorld(_band.set(0, 0.012, 0)), end]);
+}
+const _band = new THREE.Vector3();
+
+// HUD line 1 while a connection is half made.
+function linkLine() {
+  const sys = build.system, first = sys.labelOf(sys.node(build.selected));
+  const plan = build.plan;
+  if (!plan) return `${first} selected: ${press()} on a second asset`;
+  const second = sys.labelOf(sys.node(build.hovered));
+  if (plan.action === 'refused') return `Can't connect: ${plan.reason}`;
+  if (plan.action === 'remove') return `${cap(press())} to disconnect ${first} and ${second}`;
+  const end = (id, port) => sys.labelOf(sys.node(id)) + (port ? '.' + port : '');
+  const what = plan.links.map((l) => `${l.carrier}${l.model ? ' ' + l.model : ''} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`).join(', ');
+  return `${cap(press())} to connect: ${what}`;
+}
+
+// HUD line while dragging.
+function dragLine() {
+  const sys = build.system, node = sys.node(build.drag.id);
+  const what = node ? sys.labelOf(node) : 'asset';
+  const turn = preview.active ? 'R = turn' : 'bumper = turn';
+  return build.drag.check.ok ? `Moving the ${what}: let go to drop it · ${turn}` : `Moving the ${what}: ${build.drag.check.reason}, it would go back`;
 }
 
 // Demo scene: the diorama is all there is; only recalibration.
@@ -2070,16 +2310,17 @@ function demoStep() {
 }
 
 // ---------------------------------------------------------------------------
-// Manual mode (after the table corners): place assets from a palette, then connect them.
-//   place   — trigger on a palette tile picks an asset, trigger on the table places it
-//   connect — trigger on an asset, then on another, connects them (clickAsset, as cards)
-//   done    — finished; the flows keep running
-// "Done" on the palette moves on; the bumper steps back (manual.js: backAction).
+// Manual mode (after the table corners): place and connect assets, all in one mode.
+//   edit — trigger on a palette tile picks an asset, trigger on the table places it,
+//          trigger on an asset and then another connects them (clickAsset, as cards)
+//   done — a check: the palette hides and the open Illuminator ports are listed.
+//          Connecting still works; the bumper brings the palette back.
+// The bumper: cancel a half-made connection, else undo (manual.js: bumperAction).
 // Shares build.system / build.objects / build.links / syncScene with the cards mode.
 // ---------------------------------------------------------------------------
-const MANUAL_MIN_GAP = 0.06; // metres between asset centres
+const MANUAL_MIN_GAP = 0.045; // metres between asset centres (assets are drawn at assetScale)
 const manual = {
-  phase: 'place',
+  phase: 'edit',
   palette: null,         // createPalette(), once components.json and the models are loaded
   laidOut: false,        // palette placed along the table edge for this calibration
   hoverTile: null,       // palette tile under the controller ray
@@ -2119,7 +2360,7 @@ function updateModelPanel(tileObj, assetObj) {
     }, _panelPos, 'tile:' + tile.type);
     return;
   }
-  const id = assetObj?.userData.nodeId ?? (manual.phase === 'connect' ? build.selected : null);
+  const id = assetObj?.userData.nodeId ?? build.selected;
   const node = id !== null && id !== undefined ? sys.node(id) : null;
   const obj = node ? build.objects.get(node.id) : null;
   if (!node || !obj) {
@@ -2159,22 +2400,23 @@ function layoutPalette() {
 }
 
 function enterManual() {
-  manual.phase = 'place';
+  manual.phase = 'edit';
   manual.laidOut = false;
   build.selected = null;
   ensureSystem();
   if (ensurePalette()) layoutPalette(); // otherwise manualStep does it once loaded
-  info('Manual mode: place assets');
+  info('Manual mode');
 }
 
 function resetManual() {
-  manual.phase = 'place';
+  manual.phase = 'edit';
   manual.laidOut = false;
   manual.hoverTile = null;
   manual.panel?.hide();
   if (manual.palette) {
     manual.palette.group.visible = false;
     manual.palette.hideGhost();
+    manual.palette.hideList();
   }
 }
 
@@ -2216,105 +2458,222 @@ function manualTrigger(src) {
   }
   const tile = manual.hoverTile?.userData;
 
-  if (manual.phase === 'place') {
-    if (tile?.kind === 'asset') {
-      pal.selected = tile.type;
-      say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
-      return;
-    }
-    if (tile?.kind === 'group') {
-      const page = pal.setPage(tile.page);
-      const label = components.config.assets[pal.selected]?.label ?? pal.selected;
-      info('Palette page', { page: page.key, selected: pal.selected });
-      say(`${page.label}: ${plural(page.types.length, 'asset')}. Placing: ${label}`);
-      return;
-    }
-    if (tile?.kind === 'done') {
-      manualNext();
-      return;
-    }
-    const aim = currentAim();
-    if (!aim?.point) {
-      say('Point the ray at the table', 'warn');
-      return;
-    }
-    tableAnchor.updateMatrixWorld();
-    const local = tableAnchor.worldToLocal(aim.point.clone());
-    const check = placeCheck(local);
-    if (!check.ok) {
-      say(check.reason, 'warn');
-      return;
-    }
-    const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
-    syncScene();
-    info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
-    say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+  // 1. The palette (only shown while editing).
+  if (tile?.kind === 'asset') {
+    pal.selected = tile.type;
+    build.selected = null;
+    say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
+    sfx('pick');
     return;
   }
-
-  if (manual.phase === 'connect') {
-    if (tile?.kind === 'back') {
-      manualAddAssets();
-      return;
-    }
-    if (tile?.kind === 'done') {
-      manualNext();
-      return;
-    }
-    if (build.hovered !== null) clickAsset(build.hovered);
-    else if (build.selected !== null) {
-      build.selected = null;
-      say('Selection cleared');
-    }
+  if (tile?.kind === 'group') {
+    const page = pal.setPage(tile.page);
+    const label = components.config.assets[pal.selected]?.label ?? pal.selected;
+    info('Palette page', { page: page.key, selected: pal.selected });
+    say(`${page.label}: ${plural(page.types.length, 'asset')}. Placing: ${label}`);
+    sfx('pick');
+    return;
   }
-  // done: view only
-}
-
-// "Done" (palette button, or the toolbar on a screen): placing → connecting → finished.
-function manualNext() {
-  const sys = build.system;
-  if (!sys) return;
-  if (manual.phase === 'place') {
-    if (!sys.nodes.length) {
-      say('Place at least one asset first', 'warn');
-      return;
-    }
-    setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now ${press()} on an asset, then on another`);
-  } else if (manual.phase === 'connect') {
-    // Illuminator needs every input and output connected; finishing is allowed (some
-    // inputs come from data the table has no asset for yet), but the open ones are listed.
-    const open = sys.openPorts();
-    const done = `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
-    if (!open.length) {
-      setManualPhase('done', done + '. Every input and output is connected');
-      return;
-    }
-    const names = open.slice(0, 3).map((p) => `${sys.labelOf(p.node)}.${p.name}`).join(', ');
-    setManualPhase('done', `${done}. ${plural(open.length, 'port')} still open: ${names}${open.length > 3 ? '…' : ''}`);
-    warn('Finished with open Illuminator ports', open.map((p) => ({ asset: sys.labelOf(p.node), id: p.node.id, side: p.side, port: p.name })));
+  if (tile?.kind === 'done') {
+    manualDone();
+    return;
   }
-}
-
-// "Add assets" while connecting: back to placing, nothing is removed.
-function manualAddAssets() {
-  if (manual.phase !== 'place') setManualPhase('place', `Back to placing: pick an asset, ${press()} on the table`);
-}
-
-// Short bumper press: undo, or one phase back.
-function manualBack() {
+  if (tile?.kind === 'save') { saveSystem(); return; }
+  if (tile?.kind === 'load') { showSaves(); return; }
+  if (tile?.kind === 'list-item') { loadSave(saves.items[tile.index]); return; }
+  if (tile?.kind === 'list-cancel' || pal.listShown) { // anywhere else closes the list too
+    pal.hideList();
+    say('Load cancelled');
+    return;
+  }
+  // 2. An asset: first or second end of a connection.
+  if (build.hovered !== null) {
+    clickAsset(build.hovered);
+    return;
+  }
+  // 3. The table: cancels a half-made connection, otherwise places the palette's asset.
   if (build.selected !== null) {
     build.selected = null;
-    say('Selection cleared');
+    say('Connection cancelled');
     return;
   }
+  if (manual.phase === 'done') return; // no palette: nothing to place
+  const aim = currentAim();
+  if (!aim?.point) {
+    say('Point the ray at the table', 'warn');
+    return;
+  }
+  tableAnchor.updateMatrixWorld();
+  const local = tableAnchor.worldToLocal(aim.point.clone());
+  const check = placeCheck(local);
+  if (!check.ok) {
+    say(check.reason, 'warn');
+    sfx('refused');
+    return;
+  }
+  const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
+  syncScene();
+  info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
+  say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+  sfx('place');
+}
+
+// ---- Save / load (palette buttons, or the toolbar on a screen) -------------------
+// Saves go to the dev server (saves/*.json, devserver.mjs), so the laptop and the headset
+// share them. Without it (GitHub Pages) they stay in this browser's localStorage.
+const SAVES_KEY = 'tablecube-saves-v1';
+const SAVES_LOCAL_MAX = 20;
+const SAVES_SHOWN = 8;  // newest first, as palette buttons
+const saves = { items: [], busy: false };
+
+function localSaves() {
+  try { return JSON.parse(localStorage.getItem(SAVES_KEY) || '[]'); } catch { return []; }
+}
+
+function saveLabel(item) {
+  const d = item.savedAt ? new Date(item.savedAt) : null;
+  const when = d && !Number.isNaN(+d)
+    ? d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : item.name;
+  return `${when} · ${item.assets}`;
+}
+
+async function saveSystem() {
   const sys = build.system;
-  const action = backAction(manual.phase, sys?.lastStepKind() ?? null);
-  if (action === 'to-connect') setManualPhase('connect', 'Editing the connections again');
-  else if (action === 'to-place') setManualPhase('place', 'Back to placing assets');
+  if (!sys?.nodes.length) {
+    say('Nothing to save yet', 'warn');
+    return;
+  }
+  if (saves.busy) return;
+  saves.busy = true;
+  const data = { ...sys.toJSON(), savedAt: new Date().toISOString(), table: { length: state.table?.length, width: state.table?.width } };
+  const what = `${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
+  try {
+    if (remote.enabled) {
+      const r = await fetch('/saves', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+      const { name } = await r.json();
+      info('System saved on the laptop', { name, assets: data.nodes.length, links: data.links.length });
+      say(`Saved (${what}) as ${name}`);
+      sfx('save');
+    } else {
+      const list = localSaves();
+      list.unshift({ name: data.savedAt, data });
+      localStorage.setItem(SAVES_KEY, JSON.stringify(list.slice(0, SAVES_LOCAL_MAX)));
+      info('System saved in this browser', { assets: data.nodes.length, links: data.links.length });
+      say(`Saved in this browser (${what})`);
+      sfx('save');
+    }
+  } catch (err) {
+    error('Saving failed', errText(err));
+    say('Saving failed, see the log', 'warn');
+  } finally {
+    saves.busy = false;
+  }
+}
+
+async function fetchSaves() {
+  if (remote.enabled) {
+    const r = await fetch('/saves', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`${r.status}`);
+    return (await r.json()).map((s) => ({ ...s, where: 'laptop' }));
+  }
+  return localSaves().map((s) => ({
+    name: s.name, savedAt: s.data?.savedAt, assets: s.data?.nodes?.length ?? 0,
+    connections: s.data?.links?.length ?? 0, where: 'browser', data: s.data,
+  }));
+}
+
+// Load: the newest saves become buttons on the palette.
+async function showSaves() {
+  if (saves.busy) return;
+  saves.busy = true;
+  try {
+    saves.items = (await fetchSaves()).slice(0, SAVES_SHOWN);
+  } catch (err) {
+    error('Could not list the saves', errText(err));
+    say('Could not list the saves, see the log', 'warn');
+    return;
+  } finally {
+    saves.busy = false;
+  }
+  if (!saves.items.length) {
+    say(remote.enabled ? 'No saves yet (saves/ on the laptop is empty)' : 'No saves in this browser yet', 'warn');
+    return;
+  }
+  build.selected = null;
+  if (manual.phase !== 'edit') setManualPhase('edit', '');
+  manual.palette?.showList(saves.items.map(saveLabel));
+  say(`Pick a save to load (${plural(saves.items.length, 'save')}, newest first): it replaces the table`);
+}
+
+async function loadSave(item) {
+  if (!item || saves.busy) return;
+  saves.busy = true;
+  try {
+    const data = item.data ?? await (await fetch('/saves/' + encodeURIComponent(item.name), { cache: 'no-store' })).json();
+    const sys = build.system;
+    // Clear first: the saved ids may match assets on the table now.
+    sys.clear();
+    syncScene();
+    const r = sys.load(data);
+    syncScene();
+    manual.palette?.hideList();
+    if (manual.phase !== 'edit') setManualPhase('edit', '');
+    const t = state.table;
+    const off = sys.nodes.filter((n) => !insideTable(n.x, n.z, t.length, t.width, 0)).length;
+    info('System loaded', { name: item.name, where: item.where, ...r, savedTable: data.table, offTable: off });
+    let msg = `Loaded ${plural(r.nodes, 'asset')}, ${plural(r.links, 'connection')}`;
+    if (r.skipped.length) msg += ` (${r.skipped.length} left out, see the log)`;
+    if (off) msg += ` · ${off} off this table: move them on`;
+    say(msg, r.skipped.length || off ? 'warn' : 'info');
+    sfx('save');
+    if (r.skipped.length) warn('Left out while loading', r.skipped);
+  } catch (err) {
+    error('Loading failed', errText(err));
+    say('Loading failed, see the log', 'warn');
+  } finally {
+    saves.busy = false;
+  }
+}
+
+// "Done" (palette button, or the toolbar on a screen): hides the palette and lists the
+// open ports. Illuminator needs every input and output connected; finishing is allowed
+// (some inputs come from data the table has no asset for yet), but the open ones are listed.
+function manualDone() {
+  const sys = build.system;
+  if (!sys) return;
+  if (!sys.nodes.length) {
+    say('Place at least one asset first', 'warn');
+    return;
+  }
+  const open = sys.openPorts();
+  const done = `${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
+  if (!open.length) {
+    setManualPhase('done', done + '. Every input and output is connected');
+    sfx('done');
+    return;
+  }
+  const names = open.slice(0, 3).map((p) => `${sys.labelOf(p.node)}.${p.name}`).join(', ');
+  setManualPhase('done', `${done}. ${plural(open.length, 'port')} still open: ${names}${open.length > 3 ? '…' : ''}`);
+  sfx('done');
+  warn('Done with open Illuminator ports', open.map((p) => ({ asset: sys.labelOf(p.node), id: p.node.id, side: p.side, port: p.name })));
+}
+
+// Short bumper press (Backspace / "Undo" on a screen): cancel, back to editing, or undo.
+function manualBack() {
+  if (build.drag) { turnHeld(); return; } // holding an asset: turn it
+  const sys = build.system;
+  const action = bumperAction(manual.phase, build.selected !== null, sys?.lastStepKind() ?? null);
+  if (action === 'clear-selection') {
+    build.selected = null;
+    say('Connection cancelled');
+  } else if (action === 'to-edit') setManualPhase('edit', 'Editing: the palette is back');
   else if (action === 'undo') {
     const what = sys.undo();
     syncScene();
     say(what ? 'Undo: ' + what : 'Nothing to undo');
+    sfx(what ? 'undo' : 'refused');
   } else say('Nothing to undo');
 }
 
@@ -2338,15 +2697,16 @@ function manualStep(time) {
 
   // What the ray points at: a palette tile, a placed asset (connecting), or the table.
   const aim = currentAim();
-  const tileObj = aim ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
-  const assetObj = !tileObj && aim && manual.phase === 'connect' && build.objects.size
-    ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
-  // Outside connecting, assets are picked only for the info panel.
-  const infoObj = assetObj ?? (!tileObj && aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
+  const dragObj = dragStep(aim);
+  const tileObj = aim && !dragObj ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
+  const assetObj = dragObj ?? (!tileObj && aim && build.objects.size
+    ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
   manual.hoverTile = tileObj;
-  build.hovered = assetObj ? assetObj.userData.nodeId : null;
+  build.hovered = assetObj && !dragObj ? assetObj.userData.nodeId : null;
   const local = aim?.point && !tileObj && !assetObj ? tableAnchor.worldToLocal(_c.copy(aim.point)) : null;
-  const check = local && manual.phase === 'place' ? placeCheck(local) : null;
+  // The ghost shows only when a trigger here would place an asset.
+  const placing = manual.phase === 'edit' && build.selected === null && !dragObj;
+  const check = local && placing ? placeCheck(local) : null;
 
   // Laser, cursor and ghost.
   let end = null;
@@ -2358,19 +2718,16 @@ function manualStep(time) {
       : [aim.origin, _b.copy(aim.origin).addScaledVector(aim.dir, 2)]);
   } else laser.set([]);
   const outside = check && !insideTable(local.x, local.z, state.table.length, state.table.width);
-  aimCursor.visible = !!local && manual.phase !== 'done' && (manual.phase !== 'place' || outside);
+  aimCursor.visible = !!local && (!placing || outside);
   if (aimCursor.visible) aimCursor.position.copy(aim.point);
   cursorMat.color.setHex(outside ? 0xffa040 : 0xffffff);
   if (check && !outside) pal.showGhost(local.x, local.z, head, check.ok);
   else pal.hideGhost();
 
-  // Rubber band from the selected asset to where the ray points.
-  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
-  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
-  else cornerEdges.set([]);
+  linkBandStep(end);
 
   highlightAssets(time);
-  updateModelPanel(tileObj, infoObj);
+  updateModelPanel(tileObj, assetObj);
   pal.update(time, tileObj);
   build.links?.update(dt);
 
@@ -2380,32 +2737,35 @@ function manualStep(time) {
   const n = sys.nodes.length, m = sys.links.length;
   const label = (type) => components.config.assets[type]?.label ?? type;
   let line1, line2;
-  if (manual.phase === 'place') {
-    if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
-    else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
-    else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): ${press()} to start connecting` : 'Place at least one asset first';
-    else if (check && !check.ok) line1 = check.reason;
-    else line1 = desk ? `Placing ${label(pal.selected)}: click on the table` : `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
-    line2 = desk ? `${plural(n, 'asset')} · click a tile to pick another asset, a tab for more · drag to turn the view`
-      : `${plural(n, 'asset')} · tiles = assets, tabs = more assets · bumper = undo · hold = recalibrate`;
-  } else if (manual.phase === 'connect') {
-    if (tile?.kind === 'back') line1 = 'Back to placing assets';
-    else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): ${press()} to finish`;
-    else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
-    else if (build.hovered !== null) {
-      const node = sys.node(build.hovered), ports = portSummary(node);
-      line1 = `${sys.labelOf(node)}: ${press()} to select${ports ? ' · ' + ports : ''}`;
-    }
-    else line1 = `Connect: ${press()} on an asset, then on another (${plural(m, 'connection')})`;
-    line2 = desk ? 'click a connected pair again = disconnect · drag to turn the view'
-      : 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
-  } else {
-    const open = sys.openPorts().length;
+  const open = sys.openPorts().length;
+  if (build.drag) line1 = dragLine();
+  else if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
+  else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
+  else if (tile?.kind === 'save') line1 = `Save: ${press()} to store this system (${remote.enabled ? 'on the laptop' : 'in this browser'})`;
+  else if (tile?.kind === 'load') line1 = `Load: ${press()} to pick a saved system`;
+  else if (tile?.kind === 'list-item') line1 = `${cap(press())} to load this save: it replaces what is on the table`;
+  else if (tile?.kind === 'list-cancel') line1 = 'Close the list, keep the table as it is';
+  else if (tile?.kind === 'done') line1 = n ? `Done: ${press()} to check the open ports` : 'Place at least one asset first';
+  else if (build.selected !== null) {
+    line1 = linkLine();
+  } else if (build.hovered !== null) {
+    const node = sys.node(build.hovered), ports = portSummary(node);
+    line1 = `${sys.labelOf(node)}: ${press()} to connect, hold to move${ports ? ' · ' + ports : ''}`;
+  } else if (manual.phase === 'done') {
     line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}${open ? `, ${plural(open, 'open port')}` : ''}`;
-    line2 = desk ? 'Undo / back = edit the connections · Start over = clear the table'
-      : 'bumper = edit the connections · hold = start over';
+  } else if (check && !check.ok) line1 = check.reason;
+  else line1 = `Placing ${label(pal.selected)}: ${desk ? 'click on the table' : 'aim at the table, press the trigger'}`;
+  if (manual.phase === 'done') {
+    line2 = desk ? `${press()} two assets = connect · Edit = the palette back · Start over = clear the table`
+      : 'trigger two assets = connect · bumper = the palette back · hold = recalibrate';
+  } else if (build.selected !== null) {
+    line2 = desk ? 'click the table or Undo = cancel · a connected pair again = disconnect'
+      : 'trigger on the table or bumper = cancel · a connected pair again = disconnect';
+  } else {
+    line2 = desk ? `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · drag an asset = move it · drag elsewhere = turn the view`
+      : `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · hold trigger = move · bumper = undo`;
   }
-  if (performance.now() < build.messageUntil) line1 = build.message;
+  if (performance.now() < build.messageUntil && !build.drag && !build.plan) line1 = build.message;
   setHud(line1, line2);
 }
 
@@ -2984,6 +3344,7 @@ function gazeStep(frame, refSpace) {
 }
 
 function onSelect(e) {
+  if (buildActive() && swallowSelect()) return; // the end of a drag, not a click
   if (toggleLabelAt(e)) return; // pointing at an asset name: that wins over everything else
   if (state.mode === 'corners') {
     if (!calib.done) placeCorner(e?.inputSource);
@@ -3266,6 +3627,8 @@ async function startAR(requested) {
   }
 
   session.addEventListener('select', onSelect);
+  session.addEventListener('selectstart', onSelectStart);
+  session.addEventListener('selectend', onSelectEnd);
   session.addEventListener('squeeze', onSqueeze);
   session.addEventListener('squeezestart', onSqueezeStart);
   session.addEventListener('squeezeend', onSqueezeEnd);
@@ -3336,8 +3699,8 @@ function onSessionEnd() {
   setPageStatus('Session ended. See the log for what happened.');
 }
 
-startBtn.addEventListener('click', () => startAR(chosenFeatures()));
-safeBtn.addEventListener('click', () => startAR([]));
+startBtn.addEventListener('click', () => { sounds.unlock(); startAR(chosenFeatures()); });
+safeBtn.addEventListener('click', () => { sounds.unlock(); startAR([]); });
 rawBtn.addEventListener('click', rawXRTest);
 // Laptop: the same choice ("What goes on the table") on a virtual table, see startPreview.
 document.getElementById('start-preview')?.addEventListener('click', () => {
@@ -3356,8 +3719,8 @@ window.addEventListener('resize', () => {
 // ?preview=1 — the app on a normal screen: no headset, no WebXR. A virtual table (default
 // 1.6 x 0.8 m, ?size=2x1 for another one) with what is chosen under "What goes on the
 // table" (?build= or the saved choice):
-//   manual — the mouse is the controller ray: click = trigger. Backspace / "Undo / back" =
-//            bumper (short press), Enter / "Done" = the palette's Done.
+//   manual — the mouse is the controller ray: click = trigger. Backspace / "Undo" =
+//            bumper (short press), Enter / "Done" = the palette's Done ("Edit" = back).
 //   demo   — the diorama turning slowly; click an asset for its name.
 //   cards  — needs the headset camera, so it shows the demo instead.
 // Camera: drag = turn around the table, right-drag = move, wheel = zoom. A toolbar on the
@@ -3511,9 +3874,17 @@ async function startPreview() {
     calibGroup.visible = true;
     preview.active = true;
     const bar = makeDeskBar([
-      { id: 'back', text: '↶ Undo / back', title: 'Backspace', run: () => manualBack() },
-      { id: 'add', text: '◀ Add assets', run: () => manualAddAssets() },
-      { id: 'next', text: 'Done placing ▶', title: 'Enter', primary: true, run: () => manualNext() },
+      { id: 'back', text: '↶ Undo', title: 'Backspace', run: () => manualBack() },
+      { id: 'next', text: 'Done ✓', title: 'Enter', primary: true, run: () => (manual.phase === 'done' ? manualBack() : manualDone()) },
+      { id: 'save', text: '💾 Save', run: () => saveSystem() },
+      { id: 'sound', text: sounds.enabled ? '🔊 Sound' : '🔇 Sound', run: () => {
+        sounds.unlock();
+        sounds.enabled = !sounds.enabled;
+        try { localStorage.setItem(SOUND_KEY, sounds.enabled ? 'on' : 'off'); } catch { /* ignore */ }
+        bar.show('sound', true, sounds.enabled ? '🔊 Sound' : '🔇 Sound');
+        if (sounds.enabled) sfx('pick');
+      } },
+      { id: 'load', text: '📂 Load', run: () => showSaves() },
       { id: 'restart', text: 'Start over', run: () => {
         if (!confirm('Remove all assets and connections?')) return;
         resetBuild();
@@ -3528,7 +3899,25 @@ async function startPreview() {
     };
     canvas.addEventListener('pointermove', pointAt);
     canvas.addEventListener('pointerleave', () => { preview.ndc = null; });
+    // Press on an asset: hold (or move the mouse) to drag it; the view doesn't turn meanwhile.
+    canvas.addEventListener('pointerdown', (e) => {
+      sounds.unlock(); // audio may only start after a user gesture
+      if (e.button !== 0) return;
+      pointAt(e);
+      preview.aim = previewAim();
+      manualStep(performance.now());
+      pressStart(null);
+      if (build.press && controls) controls.enabled = false;
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (build.press && !build.drag && dragged(e)) startDrag(build.press.id);
+    });
+    window.addEventListener('pointerup', () => {
+      pressEnd();
+      if (controls) controls.enabled = true;
+    });
     canvas.addEventListener('click', (e) => {
+      if (swallowSelect()) return; // the end of a drag
       if (dragged(e)) return;
       // Aim exactly where the click is (a tap or touchpad click may come without a move).
       pointAt(e);
@@ -3539,17 +3928,17 @@ async function startPreview() {
     window.addEventListener('keydown', (e) => {
       if (e.target !== document.body) return;
       if (e.key === 'Backspace') { e.preventDefault(); manualBack(); }
-      if (e.key === 'Enter') { e.preventDefault(); manualNext(); }
+      if ((e.key === 'r' || e.key === 'R') && build.drag) { e.preventDefault(); turnHeld(e.key === 'R' ? -1 : 1); }
+      if (e.key === 'Enter') { e.preventDefault(); if (manual.phase === 'done') manualBack(); else manualDone(); }
     });
     enterManual();
     renderer.setAnimationLoop((time) => {
       controls?.update();
       preview.aim = previewAim();
       try { manualStep(time); } catch (err) { once('preview-err', 'error', 'Manual preview failed', errText(err)); }
-      const phase = manual.phase;
-      bar.show('back', true, phase === 'done' ? '◀ Edit connections' : '↶ Undo / back');
-      bar.show('add', phase === 'connect');
-      bar.show('next', phase !== 'done', phase === 'connect' ? 'Done connecting ✓' : 'Done placing ▶');
+      const done = manual.phase === 'done';
+      bar.show('back', !done, build.selected !== null ? '✕ Cancel' : '↶ Undo');
+      bar.show('next', true, done ? '◀ Edit' : 'Done ✓');
       canvas.style.cursor = manual.hoverTile || build.hovered !== null ? 'pointer' : '';
       animateDiorama(time);
       renderer.render(scene, camera);

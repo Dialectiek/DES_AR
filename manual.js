@@ -4,11 +4,13 @@
 // surface, +X = the table's long side (length), +Z = across (width), metres.
 //
 // Phases:
-//   place   — pick an asset on the palette, trigger on the table places it
-//   connect — trigger on two assets connects them
-//   done    — finished: nothing changes, the flows keep running
+//   edit — everything at once: trigger on a palette tile picks an asset, trigger on the
+//          table places it, trigger on an asset and then another connects them
+//   done — a check: the palette is hidden and the open Illuminator ports are listed.
+//          Nothing is locked: assets can still be connected, and the bumper (or Done
+//          on a screen) brings the palette back.
 
-export const PHASES = ['place', 'connect', 'done'];
+export const PHASES = ['edit', 'done'];
 
 // Is (x, z) on the table, at least `margin` metres from its edges?
 export function insideTable(x, z, length, width, margin = 0.03) {
@@ -49,7 +51,8 @@ export function paletteSlots(count, length, width, head, { offset = 0.07, maxSpa
 
 // Palette pages: the asset types grouped by their "group" field, in the order of
 // config.paletteGroups ([{ key, label, colour }]); within a page, config.assets order.
-// A type without a known group goes to the last page. Empty pages are left out.
+// A type without a known group goes to the last page; a type with "palette": false is not
+// on the palette at all (cards mode and saves can still use it). Empty pages are left out.
 // Returns [{ key, label, colour, types }]. Without paletteGroups: one page with everything.
 export function paletteGroups(config) {
   const defs = Array.isArray(config?.paletteGroups) && config.paletteGroups.length
@@ -59,20 +62,20 @@ export function paletteGroups(config) {
   const byKey = new Map(pages.map((p) => [p.key, p]));
   const last = pages[pages.length - 1];
   for (const [type, def] of Object.entries(config?.assets ?? {})) {
+    if (def?.palette === false) continue;
     (byKey.get(def?.group) ?? last).types.push(type);
   }
   return pages.filter((p) => p.types.length);
 }
 
-// What a short bumper press does, given the phase and the kind of the last undoable
-// step (EnergySystem.lastStepKind(): 'add' | 'link' | 'unlink' | null).
-//   place:   undo the last step (usually the last asset placed)
-//   connect: undo the last connection; when the last step was placing an asset, go back
-//            to placing instead (nothing is removed)
-//   done:    back to connecting
-// Returns 'undo' | 'to-place' | 'to-connect' | 'nothing'.
-export function backAction(phase, lastStepKind) {
-  if (phase === 'done') return 'to-connect';
-  if (phase === 'connect') return lastStepKind === 'link' || lastStepKind === 'unlink' ? 'undo' : 'to-place';
+// What a short bumper press does.
+//   a connection half made (first asset selected): cancel it
+//   done: back to editing (the palette comes back, nothing is removed)
+//   edit: undo the last step (EnergySystem.undo()), if there is one
+// lastStepKind: EnergySystem.lastStepKind() ('add' | 'link' | 'unlink' | null).
+// Returns 'clear-selection' | 'to-edit' | 'undo' | 'nothing'.
+export function bumperAction(phase, hasSelection, lastStepKind) {
+  if (hasSelection) return 'clear-selection';
+  if (phase === 'done') return 'to-edit';
   return lastStepKind ? 'undo' : 'nothing';
 }

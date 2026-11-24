@@ -9,6 +9,7 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
+| `ar-13-manual-qol` | **Done, needs a headset test.** All 6 steps done. AR-13: quality-of-life sprint for manual and cards mode. Cut from `ar-47-illuminator-schema` (needs its ports and palette pages), so it merges after `ar-12`. |
 | `ar-47-illuminator-schema` | AR-47, pushed onto `ar-12-illuminator-models` (same commits). |
 | `ar-12-illuminator-models` | **Done, PR to main next.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Also holds AR-47: Illuminator schemas, port limits, floor arrows, info panel with parameters, hydrogen tubes as Pipelines. Checked in the screen preview; needs a headset test. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
@@ -36,9 +37,43 @@ Roughly in priority order. Put your name next to an item when you pick it up.
 Every task has an id `AR-<number>`. Use it in branch names, commit messages and
 conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
-keeps its id when it moves to Done. **Next free id: AR-13.** (AR-47 is taken already: it was
+keeps its id when it moves to Done. **Next free id: AR-14.** (AR-47 is taken already: it was
 assigned directly to the schema task. Skip it when the count gets there.)
 
+- [ ] **AR-13** Quality-of-life sprint for manual and cards mode (branch `ar-13-manual-qol`,
+      one task, one headset test at the end). Move, rotate and the link preview work in
+      both modes (shared `build.system` path); the demo diorama stays view-only.
+      1. ✅ **No phases** (2026-11-24, `qol v1`, checked with `?preview=1&build=manual`). Place and connect in one mode: trigger on a palette tile picks an
+         asset, trigger on the table places it, trigger on an asset then another connects
+         them (again on a connected pair = disconnect, as now). The bumper is plain undo
+         (`backAction()` in `manual.js` goes; update its tests). **Done stays as a check**:
+         it hides the palette and lists open ports, and Done (or the bumper) brings the
+         palette back; nothing is locked.
+      2. ✅ **Move** (2026-11-24, `qol v2`, checked with `?preview=1&build=manual`; the
+         hold without moving is headset-only, untested). A trigger tap on an asset = connect; **hold the trigger ~0.4 s** on it =
+         pick it up. It follows the ray as a ghost (inside the table only), its cables
+         re-route live, release drops it. A move is one undoable step (`system.js`:
+         `moveNode(id, x, z)`, history kind `move` with the old position; tested).
+      3. ✅ **Rotate** (2026-11-24, `qol v3`, checked with `?preview=1&build=manual`; new
+         assets face the user snapped to a quarter turn). While holding an asset, each **bumper press turns it 90°**. Nodes get a
+         `yaw` field (today an asset faces the user when placed and the angle is not
+         stored); `rotateNode()` is undoable too, and the floor arrows and cables follow.
+      4. ✅ **Live link preview** (`qol v3`+; `planConnect()` in `system.js`; the band is a
+         1 px line, check on the headset whether it is visible enough). After the first asset of a connection is picked, a
+         rubber-band cable in the carrier colour follows the ray to the asset under it;
+         red (with the reason in the HUD) when `connect()` would refuse. Needs a dry-run
+         of the port choice in `system.js` / `schema.js` (pure, tested).
+      5. ✅ **Save / load** (`qol v5`; Save / Load sit at the end of the tab row; the list shows
+         the 8 newest saves; `saves/` is in `.gitignore`). `EnergySystem` gets `toJSON()` / `fromJSON()` (nodes with
+         position, yaw, params; links with ports; tested). Save and Load tiles on the
+         palette. Saves go to the dev server as `saves/<timestamp>.json` (new `POST /save`,
+         `GET /saves`), so the laptop and the headset share them; localStorage fallback
+         when there is no dev server (GitHub Pages). Load shows the saves as a palette
+         page, newest first. Screen preview: the same as toolbar buttons.
+      6. ✅ **Sounds** (`qol v6`; `sound.js`). Short WebAudio tones (no sound files): pick, place, connect,
+         disconnect, refused, undo, save. A mute switch in the screen toolbar and `?sound=0`.
+      Bump `APP_VERSION` per headset test. Interacts with AR-10 (in-AR menu): Save/Load
+      here are palette tiles; AR-10 keeps Exit / Restart.
 - [ ] **AR-1** Bring main into `scenario-import` (it conflicts since the connections merge),
       headset-test it and merge it into main.
 - [ ] **AR-2** Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
@@ -198,6 +233,29 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-13: the palette's Other page now has only the EWI tower and the banana
+  car. The rest (House with PV, wind turbine, solar battery, power box, greenhouse, car, data
+  collector) have `"palette": false` in `components.json`: off the palette, still there for
+  cards mode (red = House with PV), saves and the export. Without the collector on the
+  palette, data connections can't be made by hand for now.
+- **2026-11-24**: AR-13 steps 4–6: live link preview (band in the carrier colour, red with
+  the reason when refused), save / load through the dev server (`POST /saves`, `GET /saves`,
+  localStorage without it), WebAudio sounds (`?sound=0`, toolbar toggle). Also: assets drawn
+  at 0.65x (`assetScale` in `components.json`, `?assetScale=`) to leave more room on the
+  table. APP_VERSION `qol v6`. 85 unit tests pass. Checked in the screen preview; the
+  headset test is next (trigger hold, bumper turn, band visibility, sounds on the ML2).
+- **2026-11-24**: AR-13 step 3: bumper while holding an asset turns it 90° (R on a screen);
+  nodes keep `yaw`, a move and its turns are one undo step (`quarterTurn`, `snapToQuarter`
+  in `system.js`). APP_VERSION `qol v3`. 81 unit tests pass.
+- **2026-11-24**: AR-13 step 2: hold the trigger on an asset to move it (manual and
+  cards mode; on a screen, drag it). Cables re-route while it moves; a bad drop puts it
+  back; a move is one undo step (`dragNode` / `moveNode` in `system.js`). APP_VERSION `qol v2`. 78 unit tests pass.
+- **2026-11-24**: AR-13 step 1: manual mode has no place/connect phases any more
+  (phases `edit` and `done`), bumper = cancel or undo (`bumperAction` in `manual.js`),
+  Done only hides the palette and lists open ports. APP_VERSION `qol v1`. 75 unit tests pass.
+- **2026-11-24**: Planned AR-13, a quality-of-life sprint for manual and cards mode:
+  no phases, move (hold trigger), rotate (bumper while holding), live link preview,
+  save/load through the dev server, sounds. Branch `ar-13-manual-qol` from `ar-47`.
 - **2026-11-24**: AR-47: Illuminator schemas, port limits, floor arrows and the info
   panel (branch `ar-47-illuminator-schema`, on top of AR-12). Removed the Pipeline assets
   (the hydrogen tube is the pipe) and made the house smaller. Decided: every hydrogen tube

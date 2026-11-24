@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { insideTable, nearestEdge, paletteSlots, paletteGroups, backAction } from '../manual.js';
+import { insideTable, nearestEdge, paletteSlots, paletteGroups, bumperAction } from '../manual.js';
 
 const L = 1.6, W = 0.8; // table length (x) and width (z), metres
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -92,14 +92,21 @@ test('paletteGroups: without paletteGroups, one page with every asset', () => {
   assert.deepEqual(paletteGroups({ assets: {} }), []);
 });
 
-test('backAction per phase', () => {
-  assert.equal(backAction('place', 'add'), 'undo');
-  assert.equal(backAction('place', 'link'), 'undo');
-  assert.equal(backAction('place', null), 'nothing');
-  assert.equal(backAction('connect', 'link'), 'undo');
-  assert.equal(backAction('connect', 'unlink'), 'undo');
-  assert.equal(backAction('connect', 'add'), 'to-place'); // never removes assets while connecting
-  assert.equal(backAction('connect', null), 'to-place');
-  assert.equal(backAction('done', 'link'), 'to-connect');
-  assert.equal(backAction('done', null), 'to-connect');
+test('bumperAction: cancel a half-made connection, leave done, else undo', () => {
+  assert.equal(bumperAction('edit', true, 'add'), 'clear-selection');
+  assert.equal(bumperAction('done', true, 'link'), 'clear-selection');
+  assert.equal(bumperAction('done', false, 'link'), 'to-edit');
+  assert.equal(bumperAction('done', false, null), 'to-edit');
+  assert.equal(bumperAction('edit', false, 'add'), 'undo');
+  assert.equal(bumperAction('edit', false, 'link'), 'undo');
+  assert.equal(bumperAction('edit', false, 'unlink'), 'undo');
+  assert.equal(bumperAction('edit', false, null), 'nothing');
+});
+
+test('paletteGroups: assets with "palette": false are left out', () => {
+  const config = {
+    paletteGroups: [{ key: 'a', label: 'A' }, { key: 'other', label: 'Other' }],
+    assets: { x: { group: 'a' }, hidden: { group: 'a', palette: false }, y: {}, gone: { palette: false } },
+  };
+  assert.deepEqual(paletteGroups(config).map((p) => p.types), [['x'], ['y']]);
 });

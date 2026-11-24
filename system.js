@@ -35,13 +35,33 @@ export function resolveLink(a, b) {
   return result;
 }
 
+// A quarter turn (90°) from yaw, dir = 1 (counter-clockwise seen from above) or -1.
+// The result is kept in (-π, π] and snapped to whole quarters when it is within 1e-9.
+export function quarterTurn(yaw = 0, dir = 1) {
+  let y = yaw + (dir >= 0 ? 1 : -1) * Math.PI / 2;
+  y = Math.atan2(Math.sin(y), Math.cos(y));
+  const q = Math.round(y / (Math.PI / 2)) * (Math.PI / 2);
+  if (Math.abs(y - q) < 1e-9) y = q;
+  if (y <= -Math.PI) y += 2 * Math.PI;
+  return y;
+}
+
+// The quarter turn (0, ±π/2, π) closest to yaw. A new asset faces the user, snapped with
+// this so it lines up with the table edges and the right-angle cables.
+export function snapToQuarter(yaw = 0) {
+  const q = Math.round(yaw / (Math.PI / 2)) % 4;
+  return [0, Math.PI / 2, Math.PI, -Math.PI / 2][(q + 4) % 4];
+}
+
 export class EnergySystem {
   // config: the parsed components.json; schemas: the parsed illuminator-schemas.json
   // (optional: without it, assets have no ports and connect as before).
   constructor(config, schemas = null) {
     this.config = config;
     this.schemas = indexSchemas(schemas);
-    this.nodes = [];   // { id, colour, type (asset key or null), x, z, params? }
+    this.nodes = [];   // { id, colour, type (asset key or null), x, z, yaw?, params? }
+                       // yaw: turn around +Y in radians (front = +Z); set by the scene when
+                       // the asset first appears (facing the user), then by moves and turns.
     this.links = [];   // { id, carrier, from, to, power, fromPort, toPort, model?, params? }
     this.history = []; // undo stack
     this.nextId = 1;
@@ -143,7 +163,34 @@ export class EnergySystem {
     return node;
   }
 
-  // Kind of the step undo() would undo next: 'add' | 'link' | 'unlink' | null.
+  // While an asset is dragged: sets its position (and its turn, yaw in radians, if given)
+  // without an undo step (the drop is the step, see moveNode). Returns the node, or null.
+  dragNode(id, x, z, yaw = undefined) {
+    const node = this.node(id);
+    if (!node) return null;
+    node.x = x;
+    node.z = z;
+    if (yaw !== undefined) node.yaw = yaw;
+    return node;
+  }
+
+  // Moves (and turns, if yaw is given) an asset as one undoable step. from: { x, z, yaw }
+  // where the move started (default: where the node is now; pass the drag's start when
+  // dragNode moved it on the way). Returns false (no step) when the node is missing or
+  // ends where it started, facing the same way.
+  moveNode(id, x, z, from = null, yaw = undefined) {
+    const node = this.node(id);
+    if (!node) return false;
+    const start = from ?? { x: node.x, z: node.z, yaw: node.yaw };
+    node.x = x;
+    node.z = z;
+    if (yaw !== undefined) node.yaw = yaw;
+    if (start.x === x && start.z === z && start.yaw === node.yaw) return false;
+    this.history.push({ kind: 'move', nodeId: id, from: { x: start.x, z: start.z, yaw: start.yaw } });
+    return true;
+  }
+
+  // Kind of the step undo() would undo next: 'add' | 'link' | 'unlink' | 'move' | null.
   lastStepKind() {
     return this.history.at(-1)?.kind ?? null;
   }
@@ -152,18 +199,14 @@ export class EnergySystem {
     return this.links.filter((l) => (l.from === idA && l.to === idB) || (l.from === idB && l.to === idA));
   }
 
-  // Click on two nodes. Removes their links if they are connected already,
-  // otherwise adds the links their assets allow.
-  // Returns { action: 'added' | 'removed' | 'refused', links, reason? }.
-  connect(idA, idB) {
+  // What connect(idA, idB) would do, without changing anything (the live link preview).
+  // Returns { action: 'add' | 'remove' | 'refused', links, reason? }; the links to add
+  // have no id yet.
+  planConnect(idA, idB) {
     const a = this.node(idA), b = this.node(idB);
     if (!a || !b || idA === idB) return { action: 'refused', links: [], reason: 'pick two different assets' };
     const existing = this.linksBetween(idA, idB);
-    if (existing.length) {
-      this.links = this.links.filter((l) => !existing.includes(l));
-      this.history.push({ kind: 'unlink', links: existing });
-      return { action: 'removed', links: existing };
-    }
+    if (existing.length) return { action: 'remove', links: existing };
     const assetA = this.assetOf(a), assetB = this.assetOf(b);
     if (!assetA || !assetB) {
       const missing = !assetA ? a : b;
@@ -196,7 +239,7 @@ export class EnergySystem {
         if (pick.fromPort) taken(usedOut, from.id, 'out').push(pick.fromPort);
         if (pick.toPort) taken(usedIn, to.id, 'in').push(pick.toPort);
         made = {
-          id: this.nextId++, carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1,
+          carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1,
           fromPort: pick.fromPort, toPort: pick.toPort,
         };
         const linkModel = this.linkModel(carrier);
@@ -209,6 +252,21 @@ export class EnergySystem {
       if (made) added.push(made);
     }
     if (!added.length) return { action: 'refused', links: [], reason: lastFail };
+    return { action: 'add', links: added };
+  }
+
+  // Click on two nodes. Removes their links if they are connected already,
+  // otherwise adds the links their assets allow.
+  // Returns { action: 'added' | 'removed' | 'refused', links, reason? }.
+  connect(idA, idB) {
+    const plan = this.planConnect(idA, idB);
+    if (plan.action === 'remove') {
+      this.links = this.links.filter((l) => !plan.links.includes(l));
+      this.history.push({ kind: 'unlink', links: plan.links });
+      return { action: 'removed', links: plan.links };
+    }
+    if (plan.action === 'refused') return plan;
+    const added = plan.links.map((l) => ({ id: this.nextId++, ...l }));
     this.links.push(...added);
     this.history.push({ kind: 'link', linkIds: added.map((l) => l.id) });
     return { action: 'added', links: added };
@@ -229,6 +287,15 @@ export class EnergySystem {
       this.links = this.links.filter((l) => !ids.has(l.id));
       return 'removed the last connection';
     }
+    if (step.kind === 'move') {
+      const node = this.node(step.nodeId);
+      if (!node) return 'nothing to move back';
+      const moved = node.x !== step.from.x || node.z !== step.from.z;
+      node.x = step.from.x;
+      node.z = step.from.z;
+      if (step.from.yaw !== undefined) node.yaw = step.from.yaw;
+      return `${moved ? 'moved' : 'turned'} the ${this.labelOf(node)} back`;
+    }
     // unlink: put the links back (their nodes may be gone if they were undone meanwhile)
     const restore = step.links.filter((l) => this.node(l.from) && this.node(l.to));
     this.links.push(...restore);
@@ -240,7 +307,64 @@ export class EnergySystem {
     this.links = [];
     this.history = [];
   }
+
+  // The system as plain JSON, to save it (positions in table-local metres). Undo history
+  // is not saved.
+  toJSON() {
+    const copy = (o) => JSON.parse(JSON.stringify(o));
+    return {
+      format: SAVE_FORMAT,
+      version: 1,
+      nodes: this.nodes.map((n) => copy(n)),
+      links: this.links.map((l) => copy(l)),
+    };
+  }
+
+  // Replaces the system with a saved one (toJSON). Nodes whose asset type is unknown now,
+  // and links whose ends are missing, are left out. The undo history starts empty.
+  // Returns { nodes, links, skipped: [reason] }; throws on something that is not a save.
+  load(data) {
+    if (data?.format !== SAVE_FORMAT || !Array.isArray(data.nodes) || !Array.isArray(data.links)) {
+      throw new Error('not a saved energy system');
+    }
+    const skipped = [];
+    const nodes = [];
+    for (const n of data.nodes) {
+      if (!Number.isFinite(n?.id) || !Number.isFinite(n.x) || !Number.isFinite(n.z)) {
+        skipped.push('an asset without id or position');
+        continue;
+      }
+      if (n.type !== null && !this.config.assets?.[n.type]) {
+        skipped.push(`unknown asset "${n.type}"`);
+        continue;
+      }
+      const node = { id: n.id, colour: n.colour ?? null, type: n.type, x: n.x, z: n.z };
+      if (Number.isFinite(n.yaw)) node.yaw = n.yaw;
+      if (n.params && typeof n.params === 'object') node.params = n.params;
+      else if (n.type) {
+        const params = this.paramsFor(n.type);
+        if (params) node.params = params;
+      }
+      nodes.push(node);
+    }
+    const ids = new Set(nodes.map((n) => n.id));
+    const links = [];
+    for (const l of data.links) {
+      if (!Number.isFinite(l?.id) || !ids.has(l.from) || !ids.has(l.to) || typeof l.carrier !== 'string') {
+        skipped.push('a connection to a missing asset');
+        continue;
+      }
+      links.push(JSON.parse(JSON.stringify(l)));
+    }
+    this.nodes = nodes;
+    this.links = links;
+    this.history = [];
+    this.nextId = Math.max(0, ...nodes.map((n) => n.id), ...links.map((l) => l.id)) + 1;
+    return { nodes: nodes.length, links: links.length, skipped };
+  }
 }
+
+export const SAVE_FORMAT = 'tablecube-energy-system';
 
 // The card colour that components.json maps to this asset type, or null. Manual assets
 // use it for their ring and label, so an asset looks the same in both modes.
