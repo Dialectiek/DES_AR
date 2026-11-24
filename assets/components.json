@@ -27,8 +27,8 @@
       "power_kW": 5.6
     },
     "office-pv": {
-      "label": "Office with PV",
-      "model": "assets/models/office-pv.glb",
+      "label": "EWI office tower",
+      "model": "assets/models/ewi-tower.glb",
       "size_m": 0.24,
       "produces": [
         "electricity"

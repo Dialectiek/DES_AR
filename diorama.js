@@ -2,6 +2,8 @@
 // assets/library.json, and draws the energy flows between them.
 //
 // Everything is in real metres. main.js scales the whole group down to fit the table.
+// A scene item may set "scale" to show its model smaller than real (a landmark tower that
+// would dwarf the other assets); the label still lists the real size from the library.
 // Loaded with a dynamic import from main.js, so if anything here fails (CDN, a model),
 // the AR app keeps running and shows a placeholder instead.
 //
@@ -157,6 +159,7 @@ export async function buildDiorama({ sceneSource, libraryUrl, log }) {
     holder.add(model);
     holder.position.set(it.x ?? 0, BASE_HEIGHT + (it.y ?? 0), it.z ?? 0);
     holder.rotation.y = THREE.MathUtils.degToRad(it.rotation ?? 0);
+    if (Number(it.scale) > 0) holder.scale.setScalar(Number(it.scale));
     group.add(holder);
     items.set(it.id, { def: it, entry, object: holder });
   }));

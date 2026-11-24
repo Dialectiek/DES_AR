@@ -27,11 +27,15 @@
     let ok = 0;
     for (const [id, build] of Object.entries(BUILDERS)) {
       try {
-        const obj = build();
+        const obj = await build();
         obj.name = id;
+        let triangles = 0;
+        obj.traverse((o) => {
+          if (o.isMesh) triangles += (o.geometry.index ?? o.geometry.attributes.position).count / 3;
+        });
         const glb = await new GLTFExporter().parseAsync(obj, { binary: true });
         const r = await fetch('/save-asset?name=' + encodeURIComponent(id + '.glb'), { method: 'POST', body: glb });
-        say(`${id}.glb  ${glb.byteLength} bytes  →  ${r.status === 204 ? 'saved' : 'FAILED ' + r.status + ' ' + (await r.text())}`);
+        say(`${id}.glb  ${glb.byteLength} bytes, ${triangles} triangles  →  ${r.status === 204 ? 'saved' : 'FAILED ' + r.status + ' ' + (await r.text())}`);
         if (r.status === 204) ok++;
       } catch (err) {
         say(`${id}: ERROR ${err.message}`);

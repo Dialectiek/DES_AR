@@ -9,6 +9,7 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
+| `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
 | `scenario-import` | **In progress.** Illuminator scenarios in the diorama with a timeline panel. 1 commit ahead of its base, but main has moved on: merging it now conflicts in `diorama.js`, `main.js` and `style.css`. |
 | `connections` | Merged into main (PR #2). |
 | `claude/to-do-list-c6d6f5` | Merged into main (PR #1): AR task ids. |
@@ -33,7 +34,7 @@ Roughly in priority order. Put your name next to an item when you pick it up.
 Every task has an id `AR-<number>`. Use it in branch names, commit messages and
 conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
-keeps its id when it moves to Done. **Next free id: AR-11.**
+keeps its id when it moves to Done. **Next free id: AR-12.**
 
 - [ ] **AR-1** Bring main into `scenario-import` (it conflicts since the connections merge),
       headset-test it and merge it into main.
@@ -114,6 +115,14 @@ back and play on the table.
 
 ## Done
 
+- 2026-11-24: **AR-11** The office asset (`office-pv`) is now the TU Delft EWI tower, in
+  colour: blue glass in a fine light grid, light-blue crown, red end wall and red crown,
+  "TU Delft" letters, a low glass wing, rooftop PV. Built by `buildEwiTower()` in
+  `tools/model-builders.js` from `tools/sources/ewi-tower.stl` (52k triangles, simplified
+  to 2.3k triangles plus facade textures, 200 KB GLB). Real size (95 m long, 101 m to the
+  crown); the demo scene shows it at `"scale": 0.2` (new per-item option in `diorama.js`).
+  Checked with `?preview=1` and `?preview=1&build=manual`; not yet on the headset.
+  Branch `ar-11-ewi-office`.
 - 2026-11-24: Connections drawn the same way in every mode: electricity as a yellow cable,
   heat and gas as a tube, on the ground at right angles around the assets, arching over
   each other where they cross (`router.js` with tests, `cables.js`). Merged from `connections` (PR #2).
@@ -131,6 +140,9 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-11: replaced the office model with the EWI tower (branch
+  `ar-11-ewi-office`). Unit tests pass (53). Headset check still to do: the window grid
+  is fine (2-4 mm per floor on the table), watch for shimmer on the ML2.
 - **2026-11-24**: Gave every todo item an `AR-<number>` id (AR-1 to AR-9) and added AR-10
   (in-game menu). Merged `connections` (PR #2): routed cables and tubes, full screen
   version. `scenario-import` now conflicts with main. Unit tests on main pass (53).
