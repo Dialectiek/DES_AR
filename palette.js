@@ -6,8 +6,7 @@
 //     The assets are split into pages (components.json "paletteGroups", manual.js
 //     paletteGroups); only the current page's tiles are shown,
 //   - a row of group tabs just in front of the tiles (closer to the user), one per page,
-//   - a "Done" button at the right end (text changes per phase),
-//   - an "Add assets" button at the left end, only while connecting.
+//   - a "Done" button at the right end. The whole palette hides in the 'done' phase.
 // Every tile has userData { kind, type, pickCentre, pickRadius }, the same fields as the
 // asset objects in assets.js, so pickAsset() picks tiles too. Tabs have kind 'group'.
 // Note: Magic Leap 2 is an additive display: dark = transparent, so everything is bright.
@@ -19,7 +18,7 @@ import { paletteSlots, paletteGroups } from './manual.js';
 
 const MINI_MAX = 0.06;          // largest side of the small models on the tiles (m)
 const DISC_MAX = 0.045;         // tile disc radius (m), smaller when the tiles are packed
-const BUTTON_W = 0.12;          // Done / Add assets button (m)
+const BUTTON_W = 0.12;          // Done button (m)
 const BUTTON_H = 0.0375;
 const BUTTON_Y = 0.035;
 const TAB_W = 0.1;              // group tabs (m)
@@ -158,14 +157,9 @@ export function createPalette(config, templates) {
   doneTile.userData = { kind: 'done', pickCentre: new THREE.Vector3(0, BUTTON_Y, 0), pickRadius: 0.045 };
   group.add(doneTile);
 
-  const back = makeButton('#5ac8ff');
-  back.draw('◀ Add assets');
-  const backTile = new THREE.Group();
-  backTile.add(back.sprite);
-  backTile.userData = { kind: 'back', pickCentre: new THREE.Vector3(0, BUTTON_Y, 0), pickRadius: 0.045 };
-  group.add(backTile);
+  done.draw('Done ✓');
 
-  let phase = 'place';
+  let phase = 'edit';
   let page = 0;
   let selected = pages[0]?.types[0] ?? null;
   let hovered = null;
@@ -212,7 +206,6 @@ export function createPalette(config, templates) {
     });
     const last = slots[slots.length - 1];
     doneTile.position.set(last.x, 0, last.z);
-    backTile.position.set(slots[0].x, 0, slots[0].z);
     if (tabs.length) {
       const row = paletteSlots(tabs.length, length, width, head, { offset: TAB_OFFSET, maxSpacing: TAB_W + 0.02, lastGap: 0 });
       tabs.forEach((tab, i) => tab.position.set(row.slots[i].x, 0, row.slots[i].z));
@@ -222,13 +215,8 @@ export function createPalette(config, templates) {
 
   function showPhase() {
     group.visible = phase !== 'done';
-    for (const tile of tiles) tile.visible = phase === 'place' && tile.userData.page === page;
-    for (const tab of tabs) {
-      tab.visible = phase === 'place';
-      tab.userData.draw(tab.userData.label, tab.userData.page === page ? 'on' : 'off');
-    }
-    backTile.visible = phase === 'connect';
-    done.draw(phase === 'connect' ? 'Done connecting ✓' : 'Done placing ▶');
+    for (const tile of tiles) tile.visible = tile.userData.page === page;
+    for (const tab of tabs) tab.userData.draw(tab.userData.label, tab.userData.page === page ? 'on' : 'off');
   }
 
   function setPhase(p) {
@@ -251,9 +239,7 @@ export function createPalette(config, templates) {
 
   // Tiles the controller can point at right now.
   function pickables() {
-    if (phase === 'place') return [...pageTiles(), doneTile, ...tabs];
-    if (phase === 'connect') return [backTile, doneTile];
-    return [];
+    return phase === 'done' ? [] : [...pageTiles(), doneTile, ...tabs];
   }
 
   // Every frame: hover / selection highlights. hoverTile: a tile group or null.
@@ -267,7 +253,7 @@ export function createPalette(config, templates) {
       baseMat.opacity = sel ? 0.45 + 0.35 * pulse : hov ? 0.6 : 0.2;
       base.scale.setScalar(hov ? 1.15 : sel ? 1.08 : 1);
     }
-    for (const t of [doneTile, backTile, ...tabs]) {
+    for (const t of [doneTile, ...tabs]) {
       const sprite = t.children[0];
       const [w, h] = sprite.userData.size;
       sprite.scale.set(w, h, 1).multiplyScalar(t === hovered ? 1.15 : 1);
@@ -336,7 +322,7 @@ export function createPalette(config, templates) {
     ghostShown = null;
   }
 
-  setPhase('place');
+  setPhase('edit');
 
   return {
     group,
@@ -344,7 +330,6 @@ export function createPalette(config, templates) {
     tabs,
     pages,
     doneTile,
-    backTile,
     layout,
     setPhase,
     setPage,

@@ -28,7 +28,7 @@
 
     <fieldset id="build-picker">
       <legend>What goes on the table</legend>
-      <label><input type="radio" name="build" value="manual" checked> Manual: pick assets from a palette and place them, then connect them</label>
+      <label><input type="radio" name="build" value="manual" checked> Manual: pick assets from a palette, place them and connect them</label>
       <label><input type="radio" name="build" value="cards"> Colour cards: lay cards on the table and tap them (needs the camera feed)</label>
       <label><input type="radio" name="build" value="demo"> Demo scene: house, office, car and grid with energy flows</label>
       <p id="build-note" class="note" hidden>Camera table detection always shows the demo scene.</p>
@@ -72,12 +72,13 @@
       </ul>
       <p><b>Manual (after corner setup)</b></p>
       <ul>
-        <li><b>1. Place:</b> a palette lies along the table edge nearest to you. <b>Trigger on a tile</b> picks
-          that asset; <b>trigger on the table</b> places it (as many as you like). <b>Bumper</b> = undo the last asset.</li>
-        <li><b>Trigger on "Done placing"</b> — start connecting</li>
-        <li><b>2. Connect:</b> <b>trigger on an asset, then on another</b> connects them (again = disconnect).
-          <b>Bumper</b> = undo the last connection; with none left it goes back to placing.</li>
-        <li><b>Trigger on "Done connecting"</b> — finished: the flows keep running. <b>Bumper</b> = back to connecting.</li>
+        <li><b>Place:</b> a palette lies along the table edge nearest to you. <b>Trigger on a tile</b> picks
+          that asset; <b>trigger on the table</b> places it (as many as you like).</li>
+        <li><b>Connect</b> (any time, no mode switch): <b>trigger on an asset, then on another</b> connects them
+          (again = disconnect). Trigger on the table in between cancels.</li>
+        <li><b>Bumper</b> — cancel a half-made connection, otherwise undo the last step</li>
+        <li><b>Trigger on "Done"</b> — hides the palette and lists the open ports. Connecting still works;
+          <b>bumper</b> brings the palette back.</li>
         <li><b>Hold the bumper (1.5 s)</b> — calibrate the table again (clears everything)</li>
       </ul>
       <p><b>Colour cards (after corner setup)</b></p>

@@ -41,7 +41,7 @@ import {
   loadComponents, preloadModels, makeAssetObject, disposeAssetObject, faceTowards, pickAsset, displayColour,
 } from './assets.js';
 import { LinkView } from './links.js';
-import { insideTable, backAction } from './manual.js';
+import { insideTable, bumperAction } from './manual.js';
 import { createPalette } from './palette.js';
 import { SCHEMAS_URL } from './schema.js';
 import { addPortArrows, setPortStatus, animatePortArrows, createModelPanel } from './ports-view.js';
@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'ports v3';
+const APP_VERSION = 'qol v1';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -2070,16 +2070,17 @@ function demoStep() {
 }
 
 // ---------------------------------------------------------------------------
-// Manual mode (after the table corners): place assets from a palette, then connect them.
-//   place   — trigger on a palette tile picks an asset, trigger on the table places it
-//   connect — trigger on an asset, then on another, connects them (clickAsset, as cards)
-//   done    — finished; the flows keep running
-// "Done" on the palette moves on; the bumper steps back (manual.js: backAction).
+// Manual mode (after the table corners): place and connect assets, all in one mode.
+//   edit — trigger on a palette tile picks an asset, trigger on the table places it,
+//          trigger on an asset and then another connects them (clickAsset, as cards)
+//   done — a check: the palette hides and the open Illuminator ports are listed.
+//          Connecting still works; the bumper brings the palette back.
+// The bumper: cancel a half-made connection, else undo (manual.js: bumperAction).
 // Shares build.system / build.objects / build.links / syncScene with the cards mode.
 // ---------------------------------------------------------------------------
 const MANUAL_MIN_GAP = 0.06; // metres between asset centres
 const manual = {
-  phase: 'place',
+  phase: 'edit',
   palette: null,         // createPalette(), once components.json and the models are loaded
   laidOut: false,        // palette placed along the table edge for this calibration
   hoverTile: null,       // palette tile under the controller ray
@@ -2119,7 +2120,7 @@ function updateModelPanel(tileObj, assetObj) {
     }, _panelPos, 'tile:' + tile.type);
     return;
   }
-  const id = assetObj?.userData.nodeId ?? (manual.phase === 'connect' ? build.selected : null);
+  const id = assetObj?.userData.nodeId ?? build.selected;
   const node = id !== null && id !== undefined ? sys.node(id) : null;
   const obj = node ? build.objects.get(node.id) : null;
   if (!node || !obj) {
@@ -2159,16 +2160,16 @@ function layoutPalette() {
 }
 
 function enterManual() {
-  manual.phase = 'place';
+  manual.phase = 'edit';
   manual.laidOut = false;
   build.selected = null;
   ensureSystem();
   if (ensurePalette()) layoutPalette(); // otherwise manualStep does it once loaded
-  info('Manual mode: place assets');
+  info('Manual mode');
 }
 
 function resetManual() {
-  manual.phase = 'place';
+  manual.phase = 'edit';
   manual.laidOut = false;
   manual.hoverTile = null;
   manual.panel?.hide();
@@ -2216,101 +2217,83 @@ function manualTrigger(src) {
   }
   const tile = manual.hoverTile?.userData;
 
-  if (manual.phase === 'place') {
-    if (tile?.kind === 'asset') {
-      pal.selected = tile.type;
-      say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
-      return;
-    }
-    if (tile?.kind === 'group') {
-      const page = pal.setPage(tile.page);
-      const label = components.config.assets[pal.selected]?.label ?? pal.selected;
-      info('Palette page', { page: page.key, selected: pal.selected });
-      say(`${page.label}: ${plural(page.types.length, 'asset')}. Placing: ${label}`);
-      return;
-    }
-    if (tile?.kind === 'done') {
-      manualNext();
-      return;
-    }
-    const aim = currentAim();
-    if (!aim?.point) {
-      say('Point the ray at the table', 'warn');
-      return;
-    }
-    tableAnchor.updateMatrixWorld();
-    const local = tableAnchor.worldToLocal(aim.point.clone());
-    const check = placeCheck(local);
-    if (!check.ok) {
-      say(check.reason, 'warn');
-      return;
-    }
-    const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
-    syncScene();
-    info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
-    say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+  // 1. The palette (only shown while editing).
+  if (tile?.kind === 'asset') {
+    pal.selected = tile.type;
+    build.selected = null;
+    say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
     return;
   }
-
-  if (manual.phase === 'connect') {
-    if (tile?.kind === 'back') {
-      manualAddAssets();
-      return;
-    }
-    if (tile?.kind === 'done') {
-      manualNext();
-      return;
-    }
-    if (build.hovered !== null) clickAsset(build.hovered);
-    else if (build.selected !== null) {
-      build.selected = null;
-      say('Selection cleared');
-    }
+  if (tile?.kind === 'group') {
+    const page = pal.setPage(tile.page);
+    const label = components.config.assets[pal.selected]?.label ?? pal.selected;
+    info('Palette page', { page: page.key, selected: pal.selected });
+    say(`${page.label}: ${plural(page.types.length, 'asset')}. Placing: ${label}`);
+    return;
   }
-  // done: view only
-}
-
-// "Done" (palette button, or the toolbar on a screen): placing → connecting → finished.
-function manualNext() {
-  const sys = build.system;
-  if (!sys) return;
-  if (manual.phase === 'place') {
-    if (!sys.nodes.length) {
-      say('Place at least one asset first', 'warn');
-      return;
-    }
-    setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now ${press()} on an asset, then on another`);
-  } else if (manual.phase === 'connect') {
-    // Illuminator needs every input and output connected; finishing is allowed (some
-    // inputs come from data the table has no asset for yet), but the open ones are listed.
-    const open = sys.openPorts();
-    const done = `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
-    if (!open.length) {
-      setManualPhase('done', done + '. Every input and output is connected');
-      return;
-    }
-    const names = open.slice(0, 3).map((p) => `${sys.labelOf(p.node)}.${p.name}`).join(', ');
-    setManualPhase('done', `${done}. ${plural(open.length, 'port')} still open: ${names}${open.length > 3 ? '…' : ''}`);
-    warn('Finished with open Illuminator ports', open.map((p) => ({ asset: sys.labelOf(p.node), id: p.node.id, side: p.side, port: p.name })));
+  if (tile?.kind === 'done') {
+    manualDone();
+    return;
   }
-}
-
-// "Add assets" while connecting: back to placing, nothing is removed.
-function manualAddAssets() {
-  if (manual.phase !== 'place') setManualPhase('place', `Back to placing: pick an asset, ${press()} on the table`);
-}
-
-// Short bumper press: undo, or one phase back.
-function manualBack() {
+  // 2. An asset: first or second end of a connection.
+  if (build.hovered !== null) {
+    clickAsset(build.hovered);
+    return;
+  }
+  // 3. The table: cancels a half-made connection, otherwise places the palette's asset.
   if (build.selected !== null) {
     build.selected = null;
-    say('Selection cleared');
+    say('Connection cancelled');
     return;
   }
+  if (manual.phase === 'done') return; // no palette: nothing to place
+  const aim = currentAim();
+  if (!aim?.point) {
+    say('Point the ray at the table', 'warn');
+    return;
+  }
+  tableAnchor.updateMatrixWorld();
+  const local = tableAnchor.worldToLocal(aim.point.clone());
+  const check = placeCheck(local);
+  if (!check.ok) {
+    say(check.reason, 'warn');
+    return;
+  }
+  const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
+  syncScene();
+  info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
+  say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+}
+
+// "Done" (palette button, or the toolbar on a screen): hides the palette and lists the
+// open ports. Illuminator needs every input and output connected; finishing is allowed
+// (some inputs come from data the table has no asset for yet), but the open ones are listed.
+function manualDone() {
   const sys = build.system;
-  const action = backAction(manual.phase, sys?.lastStepKind() ?? null);
-  if (action === 'to-connect') setManualPhase('connect', 'Editing the connections again');
-  else if (action === 'to-place') setManualPhase('place', 'Back to placing assets');
+  if (!sys) return;
+  if (!sys.nodes.length) {
+    say('Place at least one asset first', 'warn');
+    return;
+  }
+  const open = sys.openPorts();
+  const done = `${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
+  if (!open.length) {
+    setManualPhase('done', done + '. Every input and output is connected');
+    return;
+  }
+  const names = open.slice(0, 3).map((p) => `${sys.labelOf(p.node)}.${p.name}`).join(', ');
+  setManualPhase('done', `${done}. ${plural(open.length, 'port')} still open: ${names}${open.length > 3 ? '…' : ''}`);
+  warn('Done with open Illuminator ports', open.map((p) => ({ asset: sys.labelOf(p.node), id: p.node.id, side: p.side, port: p.name })));
+}
+
+// Short bumper press (Backspace / "Undo" on a screen): cancel, back to editing, or undo.
+function manualBack() {
+  const sys = build.system;
+  const action = bumperAction(manual.phase, build.selected !== null, sys?.lastStepKind() ?? null);
+  if (action === 'clear-selection') {
+    build.selected = null;
+    say('Connection cancelled');
+  } else if (action === 'to-edit') setManualPhase('edit', 'Editing: the palette is back');
   else if (action === 'undo') {
     const what = sys.undo();
     syncScene();
@@ -2339,14 +2322,14 @@ function manualStep(time) {
   // What the ray points at: a palette tile, a placed asset (connecting), or the table.
   const aim = currentAim();
   const tileObj = aim ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
-  const assetObj = !tileObj && aim && manual.phase === 'connect' && build.objects.size
+  const assetObj = !tileObj && aim && build.objects.size
     ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
-  // Outside connecting, assets are picked only for the info panel.
-  const infoObj = assetObj ?? (!tileObj && aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
   manual.hoverTile = tileObj;
   build.hovered = assetObj ? assetObj.userData.nodeId : null;
   const local = aim?.point && !tileObj && !assetObj ? tableAnchor.worldToLocal(_c.copy(aim.point)) : null;
-  const check = local && manual.phase === 'place' ? placeCheck(local) : null;
+  // The ghost shows only when a trigger here would place an asset.
+  const placing = manual.phase === 'edit' && build.selected === null;
+  const check = local && placing ? placeCheck(local) : null;
 
   // Laser, cursor and ghost.
   let end = null;
@@ -2358,7 +2341,7 @@ function manualStep(time) {
       : [aim.origin, _b.copy(aim.origin).addScaledVector(aim.dir, 2)]);
   } else laser.set([]);
   const outside = check && !insideTable(local.x, local.z, state.table.length, state.table.width);
-  aimCursor.visible = !!local && manual.phase !== 'done' && (manual.phase !== 'place' || outside);
+  aimCursor.visible = !!local && (!placing || outside);
   if (aimCursor.visible) aimCursor.position.copy(aim.point);
   cursorMat.color.setHex(outside ? 0xffa040 : 0xffffff);
   if (check && !outside) pal.showGhost(local.x, local.z, head, check.ok);
@@ -2370,7 +2353,7 @@ function manualStep(time) {
   else cornerEdges.set([]);
 
   highlightAssets(time);
-  updateModelPanel(tileObj, infoObj);
+  updateModelPanel(tileObj, assetObj);
   pal.update(time, tileObj);
   build.links?.update(dt);
 
@@ -2380,30 +2363,31 @@ function manualStep(time) {
   const n = sys.nodes.length, m = sys.links.length;
   const label = (type) => components.config.assets[type]?.label ?? type;
   let line1, line2;
-  if (manual.phase === 'place') {
-    if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
-    else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
-    else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): ${press()} to start connecting` : 'Place at least one asset first';
-    else if (check && !check.ok) line1 = check.reason;
-    else line1 = desk ? `Placing ${label(pal.selected)}: click on the table` : `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
-    line2 = desk ? `${plural(n, 'asset')} · click a tile to pick another asset, a tab for more · drag to turn the view`
-      : `${plural(n, 'asset')} · tiles = assets, tabs = more assets · bumper = undo · hold = recalibrate`;
-  } else if (manual.phase === 'connect') {
-    if (tile?.kind === 'back') line1 = 'Back to placing assets';
-    else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): ${press()} to finish`;
-    else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
-    else if (build.hovered !== null) {
-      const node = sys.node(build.hovered), ports = portSummary(node);
-      line1 = `${sys.labelOf(node)}: ${press()} to select${ports ? ' · ' + ports : ''}`;
-    }
-    else line1 = `Connect: ${press()} on an asset, then on another (${plural(m, 'connection')})`;
-    line2 = desk ? 'click a connected pair again = disconnect · drag to turn the view'
-      : 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
-  } else {
-    const open = sys.openPorts().length;
+  const open = sys.openPorts().length;
+  if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
+  else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
+  else if (tile?.kind === 'done') line1 = n ? `Done: ${press()} to check the open ports` : 'Place at least one asset first';
+  else if (build.selected !== null) {
+    const first = sys.labelOf(sys.node(build.selected));
+    line1 = build.hovered !== null && build.hovered !== build.selected
+      ? `${press()} to connect ${first} and ${sys.labelOf(sys.node(build.hovered))}`
+      : `${first} selected: ${press()} on a second asset`;
+  } else if (build.hovered !== null) {
+    const node = sys.node(build.hovered), ports = portSummary(node);
+    line1 = `${sys.labelOf(node)}: ${press()} to connect${ports ? ' · ' + ports : ''}`;
+  } else if (manual.phase === 'done') {
     line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}${open ? `, ${plural(open, 'open port')}` : ''}`;
-    line2 = desk ? 'Undo / back = edit the connections · Start over = clear the table'
-      : 'bumper = edit the connections · hold = start over';
+  } else if (check && !check.ok) line1 = check.reason;
+  else line1 = `Placing ${label(pal.selected)}: ${desk ? 'click on the table' : 'aim at the table, press the trigger'}`;
+  if (manual.phase === 'done') {
+    line2 = desk ? `${press()} two assets = connect · Edit = the palette back · Start over = clear the table`
+      : 'trigger two assets = connect · bumper = the palette back · hold = recalibrate';
+  } else if (build.selected !== null) {
+    line2 = desk ? 'click the table or Undo = cancel · a connected pair again = disconnect'
+      : 'trigger on the table or bumper = cancel · a connected pair again = disconnect';
+  } else {
+    line2 = desk ? `${plural(n, 'asset')}, ${plural(m, 'connection')} · tile = asset · asset, asset = connect · drag to turn the view`
+      : `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · bumper = undo · hold = recalibrate`;
   }
   if (performance.now() < build.messageUntil) line1 = build.message;
   setHud(line1, line2);
@@ -3356,8 +3340,8 @@ window.addEventListener('resize', () => {
 // ?preview=1 — the app on a normal screen: no headset, no WebXR. A virtual table (default
 // 1.6 x 0.8 m, ?size=2x1 for another one) with what is chosen under "What goes on the
 // table" (?build= or the saved choice):
-//   manual — the mouse is the controller ray: click = trigger. Backspace / "Undo / back" =
-//            bumper (short press), Enter / "Done" = the palette's Done.
+//   manual — the mouse is the controller ray: click = trigger. Backspace / "Undo" =
+//            bumper (short press), Enter / "Done" = the palette's Done ("Edit" = back).
 //   demo   — the diorama turning slowly; click an asset for its name.
 //   cards  — needs the headset camera, so it shows the demo instead.
 // Camera: drag = turn around the table, right-drag = move, wheel = zoom. A toolbar on the
@@ -3511,9 +3495,8 @@ async function startPreview() {
     calibGroup.visible = true;
     preview.active = true;
     const bar = makeDeskBar([
-      { id: 'back', text: '↶ Undo / back', title: 'Backspace', run: () => manualBack() },
-      { id: 'add', text: '◀ Add assets', run: () => manualAddAssets() },
-      { id: 'next', text: 'Done placing ▶', title: 'Enter', primary: true, run: () => manualNext() },
+      { id: 'back', text: '↶ Undo', title: 'Backspace', run: () => manualBack() },
+      { id: 'next', text: 'Done ✓', title: 'Enter', primary: true, run: () => (manual.phase === 'done' ? manualBack() : manualDone()) },
       { id: 'restart', text: 'Start over', run: () => {
         if (!confirm('Remove all assets and connections?')) return;
         resetBuild();
@@ -3539,17 +3522,16 @@ async function startPreview() {
     window.addEventListener('keydown', (e) => {
       if (e.target !== document.body) return;
       if (e.key === 'Backspace') { e.preventDefault(); manualBack(); }
-      if (e.key === 'Enter') { e.preventDefault(); manualNext(); }
+      if (e.key === 'Enter') { e.preventDefault(); if (manual.phase === 'done') manualBack(); else manualDone(); }
     });
     enterManual();
     renderer.setAnimationLoop((time) => {
       controls?.update();
       preview.aim = previewAim();
       try { manualStep(time); } catch (err) { once('preview-err', 'error', 'Manual preview failed', errText(err)); }
-      const phase = manual.phase;
-      bar.show('back', true, phase === 'done' ? '◀ Edit connections' : '↶ Undo / back');
-      bar.show('add', phase === 'connect');
-      bar.show('next', phase !== 'done', phase === 'connect' ? 'Done connecting ✓' : 'Done placing ▶');
+      const done = manual.phase === 'done';
+      bar.show('back', !done, build.selected !== null ? '✕ Cancel' : '↶ Undo');
+      bar.show('next', true, done ? '◀ Edit' : 'Done ✓');
       canvas.style.cursor = manual.hoverTile || build.hovered !== null ? 'pointer' : '';
       animateDiorama(time);
       renderer.render(scene, camera);
