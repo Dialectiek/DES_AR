@@ -2,24 +2,35 @@
 // about to place.
 //
 // The palette is one THREE.Group in table-local coordinates (child of tableAnchor):
-//   - one tile per asset in components.json: a disc, a small copy of the model, a label,
+//   - one tile per asset in components.json: a disc, a small copy of the model, a label.
+//     The assets are split into pages (components.json "paletteGroups", manual.js
+//     paletteGroups); only the current page's tiles are shown,
+//   - a row of group tabs just in front of the tiles (closer to the user), one per page,
 //   - a "Done" button at the right end (text changes per phase),
 //   - an "Add assets" button at the left end, only while connecting.
 // Every tile has userData { kind, type, pickCentre, pickRadius }, the same fields as the
-// asset objects in assets.js, so pickAsset() picks tiles too.
+// asset objects in assets.js, so pickAsset() picks tiles too. Tabs have kind 'group'.
 // Note: Magic Leap 2 is an additive display: dark = transparent, so everything is bright.
 
 import * as THREE from 'three';
 import { displayColour } from './assets.js';
 import { colourForType } from './system.js';
-import { paletteSlots } from './manual.js';
+import { paletteSlots, paletteGroups } from './manual.js';
 
 const MINI_MAX = 0.06;          // largest side of the small models on the tiles (m)
 const DISC_MAX = 0.045;         // tile disc radius (m), smaller when the tiles are packed
 const BUTTON_W = 0.12;          // Done / Add assets button (m)
 const BUTTON_H = 0.0375;
 const BUTTON_Y = 0.035;
+const TAB_W = 0.1;              // group tabs (m)
+const TAB_H = 0.03;
+const TAB_OFFSET = 0.15;        // tab row distance outside the table edge (tiles: 0.07)
 const GHOST_OPACITY = 0.45;
+
+function rgba(hex, alpha) {
+  const c = new THREE.Color(hex);
+  return `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${alpha})`;
+}
 
 function textSprite(text, colour, widthM) {
   const canvas = document.createElement('canvas');
@@ -43,34 +54,37 @@ function textSprite(text, colour, widthM) {
 }
 
 // A flat button facing the viewer: bright outline and text (dark would be invisible).
-function makeButton(colour) {
+// draw(text, look): look 'normal' (Done / Add assets), 'on' (the current tab, filled in
+// its colour) or 'off' (another tab, dimmer).
+function makeButton(colour, w = BUTTON_W, h = BUTTON_H, y = BUTTON_Y) {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
-  canvas.height = 160;
+  canvas.height = Math.round((512 * h) / w);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
-  sprite.scale.set(BUTTON_W, BUTTON_H, 1);
-  sprite.position.y = BUTTON_Y;
+  sprite.scale.set(w, h, 1);
+  sprite.userData.size = [w, h];
+  sprite.position.y = y;
   sprite.renderOrder = 11;
   let current = '';
-  const draw = (text) => {
-    if (text === current) return;
-    current = text;
+  const draw = (text, look = 'normal') => {
+    if (text + look === current) return;
+    current = text + look;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(8, 8, canvas.width - 16, canvas.height - 16, 40);
     else ctx.rect(8, 8, canvas.width - 16, canvas.height - 16);
-    ctx.fillStyle = 'rgba(20, 60, 45, 0.75)';
+    ctx.fillStyle = look === 'on' ? rgba(colour, 0.5) : look === 'off' ? 'rgba(20, 40, 60, 0.55)' : 'rgba(20, 60, 45, 0.75)';
     ctx.fill();
     ctx.lineWidth = 10;
-    ctx.strokeStyle = colour;
+    ctx.strokeStyle = look === 'off' ? rgba(colour, 0.5) : colour;
     ctx.stroke();
     ctx.font = '700 64px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = look === 'off' ? 'rgba(255, 255, 255, 0.7)' : '#ffffff';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 4, canvas.width - 60);
     texture.needsUpdate = true;
   };
@@ -108,19 +122,35 @@ function miniModel(template, size, colour) {
 }
 
 // config: components.json; templates: Map(type → { object, height, footprint }) from
-// preloadModels. Tiles are in config.assets order.
+// preloadModels. Tiles are in page order (paletteGroups), config.assets order within a page.
 export function createPalette(config, templates) {
   const group = new THREE.Group();
   group.name = 'palette';
-  const types = Object.keys(config.assets);
+  const pages = paletteGroups(config);
+  const pageOf = new Map();
+  pages.forEach((p, i) => p.types.forEach((t) => pageOf.set(t, i)));
+  const types = pages.flatMap((p) => p.types);
 
   const tiles = types.map((type) => {
     const colour = displayColour(config, colourForType(config, type));
     const tile = new THREE.Group();
-    tile.userData = { kind: 'asset', type, colour, label: config.assets[type].label ?? type };
+    tile.userData = { kind: 'asset', type, page: pageOf.get(type), colour, label: config.assets[type].label ?? type };
     group.add(tile);
     return tile;
   });
+
+  // One tab per page, only when there is more than one page.
+  const tabs = pages.length > 1 ? pages.map((p, i) => {
+    const button = makeButton(p.colour, TAB_W, TAB_H, TAB_H / 2 + 0.006);
+    const tab = new THREE.Group();
+    tab.add(button.sprite);
+    tab.userData = {
+      kind: 'group', page: i, label: p.label, draw: button.draw,
+      pickCentre: new THREE.Vector3(0, button.sprite.position.y, 0), pickRadius: 0.035,
+    };
+    group.add(tab);
+    return tab;
+  }) : [];
 
   const done = makeButton('#5affc8');
   const doneTile = new THREE.Group();
@@ -136,14 +166,16 @@ export function createPalette(config, templates) {
   group.add(backTile);
 
   let phase = 'place';
-  let selected = types[0] ?? null;
+  let page = 0;
+  let selected = pages[0]?.types[0] ?? null;
   let hovered = null;
+  let lastLayout = null; // [length, width, head] of the last layout(), to lay out a new page
 
-  // (Re)builds the tile contents for the spacing the table allows.
-  function buildTiles(spacing) {
+  // (Re)builds the contents of the given tiles for the spacing the table allows.
+  function buildTiles(list, spacing) {
     const r = Math.min(DISC_MAX, spacing * 0.42);
     const mini = Math.min(MINI_MAX, r * 1.4);
-    for (const tile of tiles) {
+    for (const tile of list) {
       for (const c of [...tile.children]) {
         tile.remove(c);
         c.traverse((o) => {
@@ -165,30 +197,61 @@ export function createPalette(config, templates) {
     }
   }
 
-  // Puts the tiles along the table edge nearest to the user (head: table-local).
+  const pageTiles = () => tiles.filter((t) => t.userData.page === page);
+
+  // Puts the current page's tiles along the table edge nearest to the user (head:
+  // table-local), and the tabs in a row just in front of them.
   function layout(length, width, head) {
-    const { slots, spacing, yaw } = paletteSlots(tiles.length + 1, length, width, head);
-    buildTiles(spacing);
-    tiles.forEach((tile, i) => {
+    lastLayout = [length, width, head];
+    const shown = pageTiles();
+    const { slots, spacing, yaw } = paletteSlots(shown.length + 1, length, width, head);
+    buildTiles(shown, spacing);
+    shown.forEach((tile, i) => {
       tile.position.set(slots[i].x, 0, slots[i].z);
       tile.rotation.y = yaw;
     });
     const last = slots[slots.length - 1];
     doneTile.position.set(last.x, 0, last.z);
     backTile.position.set(slots[0].x, 0, slots[0].z);
+    if (tabs.length) {
+      const row = paletteSlots(tabs.length, length, width, head, { offset: TAB_OFFSET, maxSpacing: TAB_W + 0.02, lastGap: 0 });
+      tabs.forEach((tab, i) => tab.position.set(row.slots[i].x, 0, row.slots[i].z));
+    }
+    showPhase();
+  }
+
+  function showPhase() {
+    group.visible = phase !== 'done';
+    for (const tile of tiles) tile.visible = phase === 'place' && tile.userData.page === page;
+    for (const tab of tabs) {
+      tab.visible = phase === 'place';
+      tab.userData.draw(tab.userData.label, tab.userData.page === page ? 'on' : 'off');
+    }
+    backTile.visible = phase === 'connect';
+    done.draw(phase === 'connect' ? 'Done connecting ✓' : 'Done placing ▶');
   }
 
   function setPhase(p) {
     phase = p;
-    group.visible = p !== 'done';
-    for (const tile of tiles) tile.visible = p === 'place';
-    backTile.visible = p === 'connect';
-    done.draw(p === 'connect' ? 'Done connecting ✓' : 'Done placing ▶');
+    showPhase();
+  }
+
+  // Shows another page. The selection moves to the page's first asset unless it is on
+  // that page already. Returns the page ({ key, label, colour, types }).
+  function setPage(i) {
+    if (!pages[i]) return pages[page];
+    if (i !== page) {
+      page = i;
+      if (!pages[i].types.includes(selected)) selected = pages[i].types[0];
+      if (lastLayout) layout(...lastLayout);
+      else showPhase();
+    }
+    return pages[page];
   }
 
   // Tiles the controller can point at right now.
   function pickables() {
-    if (phase === 'place') return [...tiles, doneTile];
+    if (phase === 'place') return [...pageTiles(), doneTile, ...tabs];
     if (phase === 'connect') return [backTile, doneTile];
     return [];
   }
@@ -204,7 +267,11 @@ export function createPalette(config, templates) {
       baseMat.opacity = sel ? 0.45 + 0.35 * pulse : hov ? 0.6 : 0.2;
       base.scale.setScalar(hov ? 1.15 : sel ? 1.08 : 1);
     }
-    for (const t of [doneTile, backTile]) t.children[0].scale.set(BUTTON_W, BUTTON_H, 1).multiplyScalar(t === hovered ? 1.15 : 1);
+    for (const t of [doneTile, backTile, ...tabs]) {
+      const sprite = t.children[0];
+      const [w, h] = sprite.userData.size;
+      sprite.scale.set(w, h, 1).multiplyScalar(t === hovered ? 1.15 : 1);
+    }
   }
 
   // Ghost: see-through copy of the selected asset at the cursor (table-local), cached per type.
@@ -274,15 +341,23 @@ export function createPalette(config, templates) {
   return {
     group,
     tiles,
+    tabs,
+    pages,
     doneTile,
     backTile,
     layout,
     setPhase,
+    setPage,
     pickables,
     update,
     showGhost,
     hideGhost,
+    get page() { return pages[page]; },
     get selected() { return selected; },
-    set selected(type) { if (config.assets[type]) selected = type; },
+    set selected(type) {
+      if (!config.assets[type]) return;
+      if (pageOf.get(type) !== page) setPage(pageOf.get(type));
+      selected = type;
+    },
   };
 }

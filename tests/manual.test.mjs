@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { insideTable, nearestEdge, paletteSlots, backAction } from '../manual.js';
+import { insideTable, nearestEdge, paletteSlots, paletteGroups, backAction } from '../manual.js';
 
 const L = 1.6, W = 0.8; // table length (x) and width (z), metres
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -60,6 +60,36 @@ test('paletteSlots: packs the tiles closer on a short table and stays within the
 test('paletteSlots: a single tile sits in the middle', () => {
   const { slots } = paletteSlots(1, L, W, { x: 0, z: 1 });
   assert.deepEqual(slots, [{ x: 0, z: W / 2 + 0.07 }]);
+});
+
+test('paletteGroups: pages in paletteGroups order, assets in config order', () => {
+  const config = {
+    paletteGroups: [
+      { key: 'elec', label: 'Electricity', colour: '#ffe14d' },
+      { key: 'h2', label: 'Hydrogen' },
+      { key: 'empty', label: 'Nothing here' },
+      { key: 'other', label: 'Other' },
+    ],
+    assets: {
+      house: {},
+      pv: { group: 'elec' },
+      tank: { group: 'h2' },
+      wind: { group: 'elec' },
+      odd: { group: 'no-such-group' },
+    },
+  };
+  assert.deepEqual(paletteGroups(config), [
+    { key: 'elec', label: 'Electricity', colour: '#ffe14d', types: ['pv', 'wind'] },
+    { key: 'h2', label: 'Hydrogen', colour: '#ffffff', types: ['tank'] },
+    { key: 'other', label: 'Other', colour: '#ffffff', types: ['house', 'odd'] },
+  ]);
+});
+
+test('paletteGroups: without paletteGroups, one page with every asset', () => {
+  assert.deepEqual(paletteGroups({ assets: { a: {}, b: { group: 'x' } } }), [
+    { key: 'all', label: 'Assets', colour: '#ffffff', types: ['a', 'b'] },
+  ]);
+  assert.deepEqual(paletteGroups({ assets: {} }), []);
 });
 
 test('backAction per phase', () => {

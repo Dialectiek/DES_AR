@@ -177,7 +177,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'ewi v1';
+const APP_VERSION = 'models v1';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -2150,6 +2150,13 @@ function manualTrigger(src) {
       say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
       return;
     }
+    if (tile?.kind === 'group') {
+      const page = pal.setPage(tile.page);
+      const label = components.config.assets[pal.selected]?.label ?? pal.selected;
+      info('Palette page', { page: page.key, selected: pal.selected });
+      say(`${page.label}: ${plural(page.types.length, 'asset')}. Placing: ${label}`);
+      return;
+    }
     if (tile?.kind === 'done') {
       manualNext();
       return;
@@ -2290,11 +2297,12 @@ function manualStep(time) {
   let line1, line2;
   if (manual.phase === 'place') {
     if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
+    else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
     else if (tile?.kind === 'done') line1 = n ? `Done placing (${plural(n, 'asset')}): ${press()} to start connecting` : 'Place at least one asset first';
     else if (check && !check.ok) line1 = check.reason;
     else line1 = desk ? `Placing ${label(pal.selected)}: click on the table` : `Placing ${label(pal.selected)}: aim at the table, press the trigger`;
-    line2 = desk ? `${plural(n, 'asset')} · click a tile to pick another asset · drag to turn the view`
-      : `${plural(n, 'asset')} · pick another asset on the palette · bumper = undo · hold = recalibrate`;
+    line2 = desk ? `${plural(n, 'asset')} · click a tile to pick another asset, a tab for more · drag to turn the view`
+      : `${plural(n, 'asset')} · tiles = assets, tabs = more assets · bumper = undo · hold = recalibrate`;
   } else if (manual.phase === 'connect') {
     if (tile?.kind === 'back') line1 = 'Back to placing assets';
     else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): ${press()} to finish`;

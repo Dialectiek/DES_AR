@@ -52,6 +52,9 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 
 Data in `assets/`:
 - `components.json`: card colours → assets, plus the asset types for **manual and cards** modes.
+  `paletteGroups` + each asset's `group` split the manual palette into pages.
+- `models/illuminator/`: one GLB per Illuminator component type (and variants), connection
+  points (`port_*`) all at 1.0 m. Their builder source is not in the repo.
 - `library.json` + `scenes/*.json`: models and scenes for the **diorama**. Two separate
   configs for now; keep both in mind when adding an asset.
 
