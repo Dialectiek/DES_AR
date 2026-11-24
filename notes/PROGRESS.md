@@ -10,6 +10,7 @@ Last updated: 2026-11-24
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
 | `ar-13-manual-qol` | **Done, needs a headset test.** All 6 steps done. AR-13: quality-of-life sprint for manual and cards mode. Cut from `ar-47-illuminator-schema` (needs its ports and palette pages), so it merges after `ar-12`. |
+| `ar-14-yaml-import` | **In progress, needs a headset test.** AR-14: YAML mode (4th build mode). Cut from `ar-13-manual-qol` (uses its save / load), so it merges after it. Version label `yaml v1`. |
 | `ar-47-illuminator-schema` | AR-47, pushed onto `ar-12-illuminator-models` (same commits). |
 | `ar-12-illuminator-models` | **Done, PR to main next.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Also holds AR-47: Illuminator schemas, port limits, floor arrows, info panel with parameters, hydrogen tubes as Pipelines. Checked in the screen preview; needs a headset test. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
@@ -20,6 +21,23 @@ Last updated: 2026-11-24
 | `settingup` | Merged into main. |
 
 ## In progress
+
+- **AR-14 YAML mode** (`ar-14-yaml-import`)
+  - A 4th build mode: pick a case from `cases/` (start page, or `?build=yaml&case=<id>`).
+    Its Illuminator YAML becomes an energy system made of our assets (`yaml-import.js`),
+    laid out in columns along the flow direction, then edited like manual mode.
+  - Each model type takes the first asset in `components.json` with that `illuminator` type;
+    connections keep their YAML ports; a Pipeline model becomes a hydrogen tube. CSV
+    readers and types without an asset (e.g. `Controller_T1`) are left out and logged.
+  - One case: `cases/hydrogen-example.yaml` (written for this, not run in Illuminator yet).
+    `vendor/js-yaml.mjs` is the same file as on `scenario-import`.
+  - Controllers: a new palette page with one avatar per Illuminator controller type
+    (`Controller_T1`, `ControllerT3Congestion`, `ControllerEV`, three H2 controllers), each
+    with its own shirt colour (`tools/controller-avatars.mjs`). The old H2 controller model is
+    replaced. `ControllerEV` is not in the schemas yet (`noSchema`), so it has no port limit.
+    With them, the EV case builds with its connections.
+  - Checked with `?preview=1&build=yaml` (`yaml v2`). Next: headset test (rigged avatars are
+    new there), then merge after AR-13.
 
 - **Illuminator scenario import** (`scenario-import`, Ruiqi)
   - The diorama is built from an Illuminator/mosaik YAML and played from its output CSV
@@ -37,7 +55,7 @@ Roughly in priority order. Put your name next to an item when you pick it up.
 Every task has an id `AR-<number>`. Use it in branch names, commit messages and
 conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
-keeps its id when it moves to Done. **Next free id: AR-14.** (AR-47 is taken already: it was
+keeps its id when it moves to Done. **Next free id: AR-15.** (AR-47 is taken already: it was
 assigned directly to the schema task. Skip it when the count gets there.)
 
 - [ ] **AR-13** Quality-of-life sprint for manual and cards mode (branch `ar-13-manual-qol`,
@@ -145,6 +163,7 @@ back and play on the table.
 | YAML + CSV → diorama with a timeline (read a scenario) | In progress on `scenario-import` (AR-1) |
 | Map Illuminator model types ↔ our assets, both ways (`illuminator-types.json`) | Read direction in progress on `scenario-import` (AR-1) |
 | Know each model's inputs, outputs and parameters (`illuminator-schemas.json`) | Done on `ar-47-illuminator-schema` (AR-47): links record `fromPort` / `toPort`, nodes keep `params` |
+| YAML → energy system on the table, edited like manual (YAML mode) | Done on `ar-14-yaml-import` (AR-14), no playback |
 | Energy system → YAML (write a scenario) | Not started (AR-3) |
 | Send the YAML to Illuminator and get the output back | Not started; open question below (AR-2) |
 | Edit the topology of a loaded scenario on the table, then re-run | Not started |
@@ -233,6 +252,14 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-14: controllers. A Controllers palette page with an avatar per
+  Illuminator controller type, each with its own shirt colour, generated from one source
+  avatar by `tools/controller-avatars.mjs` (textures shrunk to 512², 553 KB each). Rigged
+  models are cloned with SkeletonUtils (`cloneModel` in `assets.js`). The EV case now has
+  its controller and 10 connections.
+- **2026-11-24**: AR-14: YAML mode. A case from `cases/` (an Illuminator scenario YAML) is
+  built on the table with our assets, then edited like manual mode. `yaml-import.js` +
+  tests, `cases/hydrogen-example.yaml`, start-page case picker, `?case=`, toolbar button.
 - **2026-11-24**: AR-13: the palette's Other page now has only the EWI tower and the banana
   car. The rest (House with PV, wind turbine, solar battery, power box, greenhouse, car, data
   collector) have `"palette": false` in `components.json`: off the palette, still there for

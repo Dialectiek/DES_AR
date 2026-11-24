@@ -15,7 +15,7 @@
 // look at the table and press the trigger to place the content.
 // Default table setup is corner calibration: aim at the 4 corners and press the trigger.
 //
-// What goes on the table (start-page menu "build", ?build=manual|cards|demo):
+// What goes on the table (start-page menu "build", ?build=manual|cards|yaml|demo):
 //   - manual: a palette of assets lies along the table edge nearest to you. Trigger on a
 //     palette tile picks an asset, trigger on the table places it (as often as you like).
 //     Trigger on "Done" → connect: trigger on an asset, then on a second one = connect
@@ -23,6 +23,9 @@
 //   - cards: colour squares calibrate the card colours, then trigger on a card adds the
 //     asset that assets/components.json maps its colour to (cards.js, assets.js).
 //     Trigger on two assets connects them, as in manual mode.
+//   - yaml: manual mode, starting from a case in cases/ (an Illuminator scenario YAML,
+//     picked on the start page or with ?case=): its models become our assets, its
+//     connections links with the same ports (yaml-import.js). Then it is edited as manual.
 //   - demo: the fixed diorama from assets/scenes/demo.json (diorama.js).
 // Link types follow from what the assets produce and consume (system.js); flows are
 // animated (links.js). Bumper = undo / step back, hold the bumper = calibrate again.
@@ -187,7 +190,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'qol v6';
+const APP_VERSION = 'yaml v2';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -317,10 +320,10 @@ for (const inp of setupInputs) {
 }
 
 // What goes on the table after the corner setup: 'manual' (palette), 'cards' (colour
-// cards) or 'demo' (the diorama). ?build= overrides. Camera table detection never reaches
+// cards), 'yaml' (a case from cases/, then manual) or 'demo' (the diorama). ?build= overrides. Camera table detection never reaches
 // the build step, so it always shows the demo.
 const BUILD_KEY = 'tablecube-build-v1';
-const BUILD_MODES = ['manual', 'cards', 'demo'];
+const BUILD_MODES = ['manual', 'cards', 'yaml', 'demo'];
 const buildPicker = document.getElementById('build-picker');
 const buildInputs = [...document.querySelectorAll('#build-picker input[name="build"]')];
 try {
@@ -337,11 +340,44 @@ function updateBuildPicker() {
   if (buildPicker) buildPicker.disabled = detect;
   const note = document.getElementById('build-note');
   if (note) note.hidden = !detect;
+  if (caseRow) caseRow.hidden = detect || chosenBuild() !== 'yaml';
 }
 for (const inp of buildInputs) {
   inp.addEventListener('change', () => {
     try { localStorage.setItem(BUILD_KEY, chosenBuild()); } catch { /* ignore */ }
+    updateBuildPicker();
   });
+}
+
+// YAML mode: the cases in cases/index.json fill the start page's case list. The chosen
+// one: ?case=, else the last one picked, else the first.
+const CASES_URL = 'cases/index.json';
+const CASE_KEY = 'tablecube-case-v1';
+const caseRow = document.getElementById('case-row');
+const casePicker = document.getElementById('case-picker');
+const cases = { list: [] };
+cases.ready = (async () => {
+  try {
+    const res = await fetch(CASES_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    cases.list = (await res.json()).cases ?? [];
+  } catch (err) {
+    warn(`${CASES_URL} failed to load: the YAML mode has no cases`, errText(err));
+  }
+  if (!casePicker) return;
+  casePicker.innerHTML = '';
+  for (const c of cases.list) casePicker.add(new Option(c.name ?? c.id, c.id));
+  if (!cases.list.length) casePicker.add(new Option('No cases in cases/index.json', ''));
+  let saved = null;
+  try { saved = params.get('case') || localStorage.getItem(CASE_KEY); } catch { /* ignore */ }
+  if (cases.list.some((c) => c.id === saved)) casePicker.value = saved;
+})();
+casePicker?.addEventListener('change', () => {
+  try { localStorage.setItem(CASE_KEY, casePicker.value); } catch { /* ignore */ }
+});
+function chosenCase() {
+  const id = casePicker?.value || params.get('case');
+  return cases.list.find((c) => c.id === id) ?? cases.list[0] ?? null;
 }
 updateBuildPicker();
 
@@ -2518,6 +2554,54 @@ function manualTrigger(src) {
   sfx('place');
 }
 
+// ---- YAML mode: build a case from cases/ ---------------------------------------
+// The YAML mode is manual mode that starts from a case: once the table and the assets are
+// ready, the case's YAML becomes the energy system on the table (yaml-import.js). After
+// that everything is manual mode (move, connect, undo, save, …).
+const yamlMode = { case: null, started: false };
+
+// At the start (AR or screen): picks the case and switches to manual. false = no case.
+function startYamlMode() {
+  const c = chosenCase();
+  if (!c) {
+    warn('No YAML case to build (cases/index.json is empty or failed to load): plain manual mode');
+    state.build = 'manual';
+    return false;
+  }
+  yamlMode.case = c;
+  yamlMode.started = false;
+  state.build = 'manual';
+  info('YAML mode', { case: c.id, file: 'cases/' + c.file });
+  return true;
+}
+
+async function buildCase(c) {
+  try {
+    const { parseScenario, importScenario } = await import('./yaml-import.js');
+    const res = await fetch('cases/' + c.file, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`cases/${c.file}: HTTP ${res.status}`);
+    const r = importScenario(parseScenario(await res.text()), components.config, components.schemas, state.table);
+    const sys = build.system;
+    sys.clear();
+    syncScene();
+    const loaded = sys.load(r.save);
+    syncScene();
+    info('YAML case built', {
+      case: c.id, scenario: r.name, assets: r.placed.map((p) => `${p.name} (${p.type} → ${p.asset})`),
+      connections: loaded.links,
+    });
+    if (r.skipped.length) warn('Models left out (no asset on the table)', r.skipped.map((m) => `${m.name} (${m.type}): ${m.reason}`));
+    if (r.droppedConnections.length) warn('Connections left out', r.droppedConnections.map((d) => `${d.from} → ${d.to}: ${d.reason}`));
+    let msg = `${r.name ?? c.name}: ${plural(loaded.nodes, 'asset')}, ${plural(loaded.links, 'connection')}`;
+    if (r.skipped.length) msg += ` · ${plural(r.skipped.length, 'model')} left out, see the log`;
+    say(msg, r.skipped.length ? 'warn' : 'info');
+    sfx('save');
+  } catch (err) {
+    error('The YAML case failed to build', errText(err));
+    say('The YAML case failed to build, see the log', 'warn');
+  }
+}
+
 // ---- Save / load (palette buttons, or the toolbar on a screen) -------------------
 // Saves go to the dev server (saves/*.json, devserver.mjs), so the laptop and the headset
 // share them. Without it (GitHub Pages) they stay in this browser's localStorage.
@@ -2692,6 +2776,10 @@ function manualStep(time) {
     return;
   }
   if (!manual.laidOut) layoutPalette();
+  if (yamlMode.case && !yamlMode.started) {
+    yamlMode.started = true;
+    buildCase(yamlMode.case);
+  }
   tableAnchor.updateMatrixWorld();
   const head = headInTable();
 
@@ -3534,6 +3622,7 @@ async function startAR(requested) {
   onceKeys.clear();
   const setup = chosenSetup();
   state.build = chosenBuild();
+  if (state.build === 'yaml') startYamlMode();
   // Corner setup only needs the camera for the colour cards. Not asking for it otherwise
   // means one permission less, and the camera binding was the riskiest part on the ML2.
   if (setup === 'corners' && state.build !== 'cards') requested = requested.filter((f) => f !== 'camera-access');
@@ -3792,7 +3881,9 @@ function goPreview(build) {
 
 async function startPreview() {
   const chosen = chosenBuild();
-  const manualPreview = chosen === 'manual';
+  if (chosen === 'yaml') await cases.ready;
+  const manualPreview = chosen === 'manual' || (chosen === 'yaml' && startYamlMode());
+  if (chosen === 'yaml' && !manualPreview) info('No YAML case to build: showing the demo scene instead');
   state.build = manualPreview ? 'manual' : 'demo';
   const [L, W] = previewTableSize();
   info(manualPreview
@@ -3854,7 +3945,8 @@ async function startPreview() {
     { id: 'top', text: 'Top view', run: () => { autoTurn = false; setView(new THREE.Vector3(0, 1.25 * k, 0.001)); } },
     { id: 'home', text: 'Reset view', run: () => setView(home) },
     { gap: true },
-    { id: 'manual', text: 'Manual', current: manualPreview, run: () => goPreview('manual') },
+    { id: 'manual', text: 'Manual', current: manualPreview && !yamlMode.case, run: () => goPreview('manual') },
+    { id: 'yaml', text: 'YAML case', current: !!yamlMode.case, run: () => goPreview('yaml') },
     { id: 'demo', text: 'Demo', current: !manualPreview, run: () => goPreview('demo') },
     { id: 'start', text: 'Start page', run: () => goPreview(null) },
   ];

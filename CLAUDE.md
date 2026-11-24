@@ -33,6 +33,8 @@ Status, todo and roadmap: **[notes/PROGRESS.md](notes/PROGRESS.md)**. Colour-car
    - `manual`: pick assets from a palette along the table edge, place them, then connect them.
    - `cards`: calibrate colour squares, then tap a coloured card to add its asset. Not
      reliable yet, see notes/DETECTION_NOTES.md.
+   - `yaml`: build a case from `cases/` (an Illuminator scenario YAML) with our assets,
+     then edit it as in manual mode.
    - `demo`: the fixed diorama from `assets/scenes/demo.json`.
 3. Controls: trigger = act (hold it on an asset = move it, bumper meanwhile = turn it),
    bumper = undo / cancel, hold the bumper = recalibrate.
@@ -48,19 +50,25 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 | `schema.js` / `ports-view.js` | Illuminator model schemas: ports, port choice, arrow layout, panel rows. Pure, tested / floor arrows per input and output, and the asset info panel. |
 | `manual.js` / `palette.js` | Manual mode: pure layout logic (tested) / palette and ghost 3D. |
 | `cards.js` | Colour-card detection. Pure, tested. |
+| `yaml-import.js` | YAML mode: Illuminator scenario YAML → energy system (assets, links with their ports, layout). Pure, tested. Parses with `vendor/js-yaml.mjs`. |
 | `assets.js` / `links.js` | 3D objects for nodes / adapter from the energy system's links to `cables.js` (manual and cards modes). |
 | `router.js` / `cables.js` | Connection routing: right angles on a grid, around the assets, bridges where links cross. Pure, tested / draws the routed cables and tubes with flow dots, in every mode. |
 | `sound.js` | Feedback sounds made with WebAudio (no files); muted with `?sound=0`. |
 | `diorama.js` / `asset-labels.js` | Diorama scene loader and flows / floating asset info panels. |
 | `tools/illuminator-schemas.cjs` | Reads the Illuminator docs and writes `assets/illuminator-schemas.json` (refresh command in its header). |
+| `tools/controller-avatars.mjs` | Makes the controller GLBs (one per Illuminator controller type) from the avatar in `tools/sources/avatar-cyan.glb`, each with its own shirt colour. Run `node tools/controller-avatars.mjs`. |
 | `tools/model-builders.js` | Procedural source of the GLBs in `assets/models/`; export with `tools/export-models.html` (`node devserver.mjs 8001 --allow-save`). Source geometry a builder reads (the EWI tower STL) is in `tools/sources/`. |
+
+Cases for the YAML mode are in `cases/`: one YAML per case, listed in `cases/index.json`
+(a static host can't list a folder, so add a new case there too).
 
 Data in `assets/`:
 - `components.json`: card colours → assets, plus the asset types for **manual and cards** modes.
   `paletteGroups` + each asset's `group` split the manual palette into pages.
 - `models/illuminator/`: one GLB per Illuminator component type (and variants) except
   Pipeline, which is drawn as the hydrogen tube between two assets; connection
-  points (`port_*`) all at 1.0 m. Their builder source is not in the repo.
+  points (`port_*`) all at 1.0 m. Their builder source is not in the repo, except the
+  controllers: a rigged avatar per controller type, made by `tools/controller-avatars.mjs`.
 - `illuminator-schemas.json`: every Illuminator model's parameters, inputs, outputs and
   states, generated from the docs. An asset's `illuminator` field in `components.json` points
   into it. Don't edit it by hand; regenerate it.

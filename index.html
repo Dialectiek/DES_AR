@@ -30,6 +30,8 @@
       <legend>What goes on the table</legend>
       <label><input type="radio" name="build" value="manual" checked> Manual: pick assets from a palette, place them and connect them</label>
       <label><input type="radio" name="build" value="cards"> Colour cards: lay cards on the table and tap them (needs the camera feed)</label>
+      <label><input type="radio" name="build" value="yaml"> YAML case: build an Illuminator scenario from <code>cases/</code> with our assets, then edit it like manual</label>
+      <label id="case-row" class="sub" hidden>Case <select id="case-picker"><option value="">Loading the cases…</option></select></label>
       <label><input type="radio" name="build" value="demo"> Demo scene: house, office, car and grid with energy flows</label>
       <p id="build-note" class="note" hidden>Camera table detection always shows the demo scene.</p>
     </fieldset>
@@ -118,10 +120,11 @@
         <li><code>?debug=1</code> — start with the camera debug view visible (corner setup: shows the card colours of the last scan)</li>
         <li><code>?flipy=1</code> — flip the camera image if detection looks upside down</li>
         <li><code>?table=0.75</code> — fallback table height in metres above the floor</li>
-        <li><code>?build=manual</code> / <code>cards</code> / <code>demo</code> — choose what goes on the table</li>
+        <li><code>?build=manual</code> / <code>cards</code> / <code>yaml</code> / <code>demo</code> — choose what goes on the table</li>
+        <li><code>?case=hydrogen-example</code> — the case the YAML mode builds (an id from <code>cases/index.json</code>)</li>
         <li><code>?setup=corners</code> / <code>?setup=detect</code> — choose the table setup</li>
         <li><code>?preview=1</code> — use it on this screen, no headset (same as the "Use on this screen" button): a virtual
-          table with what is chosen under "What goes on the table" (or <code>&amp;build=manual</code> / <code>demo</code>).
+          table with what is chosen under "What goes on the table" (or <code>&amp;build=manual</code> / <code>yaml</code> / <code>demo</code>).
           Drag = turn the view, right-drag = move it, wheel = zoom. Manual: click = trigger, Backspace = undo / back,
           Enter = done; the toolbar has the same and "Start over". Colour cards need the headset camera, so they show the demo.
           <code>&amp;size=2x1</code> — the virtual table's size in metres (default 1.6x0.8).</li>

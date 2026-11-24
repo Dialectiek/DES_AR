@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 export const COMPONENTS_URL = 'assets/components.json';
 
@@ -51,6 +52,15 @@ function liftMaterials(root, amount) {
     });
     o.material = Array.isArray(o.material) ? lifted : lifted[0];
   });
+}
+
+// A copy of a model template. A rigged model (the controller avatars) needs SkeletonUtils:
+// a plain clone would keep its meshes bound to the template's bones, so every copy would
+// be drawn where the template is. Geometry and materials are shared either way.
+export function cloneModel(object) {
+  let rigged = false;
+  object.traverse((o) => { if (o.isSkinnedMesh) rigged = true; });
+  return rigged ? cloneSkinned(object) : object.clone(true);
 }
 
 // Scales the model so its largest side (any direction) is sizeM, puts its base at
@@ -126,7 +136,7 @@ export function makeAssetObject(node, config, templates) {
   let height, footprint;
   const template = node.type ? templates.get(node.type) : null;
   if (template) {
-    group.add(template.object.clone(true));
+    group.add(cloneModel(template.object));
     height = template.height;
     footprint = template.footprint;
   } else {

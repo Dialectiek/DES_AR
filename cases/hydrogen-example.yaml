@@ -1,0 +1,78 @@
+# Example case for the YAML mode of the app (AR-14): a small hydrogen chain. It uses only model
+# types the table has assets for, so every model shows up. Port names come from
+# assets/illuminator-schemas.json. Not yet run in Illuminator: the parameters are the
+# schema defaults except where set here.
+scenario:
+  name: "Hydrogen example"
+  start_time: '2012-06-01 00:00:00'
+  end_time: '2012-06-01 23:45:00'
+  time_resolution: 900
+
+models:
+- name: CSV_pv
+  type: CSV
+  parameters:
+    file_path: './data/pv_data.txt'
+    delimiter: ','
+    date_format: 'YYYY-MM-DD HH:mm:ss'
+
+- name: PV1
+  type: PV
+  parameters:
+    peak_power: 600
+    cap: 500
+
+- name: Wind1
+  type: Wind
+  parameters:
+    p_rated: 300
+
+- name: Battery1
+  type: Battery
+  parameters:
+    max_energy: 50
+
+- name: Electrolyzer1
+  type: Electrolyzer
+  parameters:
+    max_p_in: 400
+
+- name: Pipe1
+  type: Pipeline
+  parameters:
+    L: 250
+
+- name: Storage1
+  type: H2Storage
+
+- name: Demand1
+  type: H2demand
+  parameters:
+    units: 3
+
+- name: Grid1
+  type: GridConnection
+  parameters:
+    connection_capacity: 1000
+
+connections:
+- from: CSV_pv.G_Gh
+  to: PV1.G_Gh
+- from: PV1.pv_gen
+  to: Electrolyzer1.desired_out
+- from: Wind1.wind_gen
+  to: Battery1.flow2b
+- from: Electrolyzer1.h_gen
+  to: Pipe1.flow_in
+- from: Pipe1.flow_out
+  to: Storage1.flow2h2storage
+- from: Storage1.h2_out
+  to: Demand1.demand
+- from: Battery1.p_out
+  to: Grid1.dump
+
+monitor:
+  file: './out_hydrogen-example.csv'
+  items:
+    - Storage1.soc
+    - Electrolyzer1.h_gen

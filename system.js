@@ -59,7 +59,8 @@ export class EnergySystem {
   constructor(config, schemas = null) {
     this.config = config;
     this.schemas = indexSchemas(schemas);
-    this.nodes = [];   // { id, colour, type (asset key or null), x, z, yaw?, params? }
+    this.nodes = [];   // { id, colour, type (asset key or null), x, z, yaw?, params?, name? }
+                       // name: the Illuminator model name, for a node read from a YAML.
                        // yaw: turn around +Y in radians (front = +Z); set by the scene when
                        // the asset first appears (facing the user), then by moves and turns.
     this.links = [];   // { id, carrier, from, to, power, fromPort, toPort, model?, params? }
@@ -124,7 +125,8 @@ export class EnergySystem {
   }
 
   labelOf(node) {
-    return this.assetOf(node)?.label ?? `${node.colour} card`;
+    const label = this.assetOf(node)?.label ?? `${node.colour} card`;
+    return node.name ? `${node.name} (${label})` : label;
   }
 
   node(id) {
@@ -340,6 +342,7 @@ export class EnergySystem {
       }
       const node = { id: n.id, colour: n.colour ?? null, type: n.type, x: n.x, z: n.z };
       if (Number.isFinite(n.yaw)) node.yaw = n.yaw;
+      if (typeof n.name === 'string' && n.name) node.name = n.name; // Illuminator model name (YAML mode)
       if (n.params && typeof n.params === 'object') node.params = n.params;
       else if (n.type) {
         const params = this.paramsFor(n.type);

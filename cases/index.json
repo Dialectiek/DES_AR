@@ -1,0 +1,7 @@
+{
+  "about": "Cases for the YAML mode: Illuminator scenario YAMLs that the app builds on the table with our assets. The start page lists them in this order; 'file' is relative to this folder. A static host (GitHub Pages) cannot list a folder, so a new case is added here as well. ?case=<id> picks one.",
+  "cases": [
+    { "id": "hydrogen-example", "name": "Hydrogen example: PV, wind, battery, electrolyzer, pipeline, storage", "file": "hydrogen-example.yaml" },
+    { "id": "example", "name": "actual example from the illuminator", "file": "EV_scenario1.yaml" }
+  ]
+}
