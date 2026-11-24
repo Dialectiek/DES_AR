@@ -214,3 +214,21 @@ test('snapToQuarter: the nearest of 0, ±90°, 180°', () => {
   assert.equal(snapToQuarter(7.0), 0); // 7 rad ≈ 401° → 0
   assert.equal(snapToQuarter(), 0);
 });
+
+test('planConnect says what connect would do, and changes nothing', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0, 0);
+  const c = sys.addNode('car', 0.2, 0);
+  const t2 = sys.addNode('turbine', 0.4, 0);
+  const before = JSON.stringify([sys.links, sys.history, sys.nextId]);
+  const plan = sys.planConnect(t.id, c.id);
+  assert.equal(plan.action, 'add');
+  assert.deepEqual(plan.links.map((l) => [l.carrier, l.from, l.to]), [['electricity', t.id, c.id]]);
+  assert.equal(plan.links[0].id, undefined);
+  assert.equal(sys.planConnect(t.id, t2.id).action, 'refused');
+  assert.match(sys.planConnect(t.id, t2.id).reason, /can't be connected/);
+  assert.equal(sys.planConnect(t.id, t.id).action, 'refused');
+  assert.equal(JSON.stringify([sys.links, sys.history, sys.nextId]), before);
+  sys.connect(t.id, c.id);
+  assert.equal(sys.planConnect(c.id, t.id).action, 'remove');
+});

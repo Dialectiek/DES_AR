@@ -1423,6 +1423,7 @@ function makeDynamicLine(maxPoints, color, parent = calibGroup) {
 }
 const laser = makeDynamicLine(2, 0xffffff);
 const cornerEdges = makeDynamicLine(6, 0xffd60a);
+const linkBand = makeDynamicLine(2, 0xffd60a); // live link preview (linkBandStep)
 
 const cursorMat = new THREE.MeshBasicMaterial({ color: CORNER_COLOURS[0], side: THREE.DoubleSide });
 const aimCursor = new THREE.Group();
@@ -1605,6 +1606,7 @@ function finishCalibration() {
   tableAnchor.visible = true;
   laser.set([]);
   cornerEdges.set([]);
+  linkBand.set([]);
   aimCursor.visible = false;
   info('Table calibrated', {
     centre: [r.cx, r.y, r.cz].map((v) => +v.toFixed(3)),
@@ -1735,6 +1737,7 @@ const build = {
   press: null,           // { id, at } trigger held down on an asset (may become a drag)
   drag: null,            // { id, start: {x, z}, check, routedAt: {x, z} } while moving an asset
   dragEndedAt: 0,        // the 'select' that follows a drop is not a click
+  plan: null,            // planConnect() for the selected and the hovered asset (link preview)
 };
 
 function say(text, level = 'info') {
@@ -1807,6 +1810,7 @@ function resetBuild() {
   build.selected = null;
   build.hovered = null;
   cornerEdges.set([]);
+  linkBand.set([]);
   resetManual();
 }
 
@@ -2186,10 +2190,7 @@ function buildStep(time, frame, pose) {
     laser.set([]);
     aimCursor.visible = false;
   }
-  // Rubber band from the selected asset to where the controller points.
-  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
-  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
-  else cornerEdges.set([]);
+  linkBandStep(end);
 
   highlightAssets(time);
   build.links?.update(dt);
@@ -2198,9 +2199,9 @@ function buildStep(time, frame, pose) {
   const sys = build.system;
   let line1;
   if (build.drag) line1 = dragLine();
-  else if (performance.now() < build.messageUntil) line1 = build.message;
+  else if (performance.now() < build.messageUntil && !build.plan) line1 = build.message;
   else if (build.scan || build.tap) line1 = 'Reading the card colour…';
-  else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
+  else if (build.selected !== null) line1 = linkLine();
   else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: trigger to select, hold to move`;
   else if (!sys?.nodes.length) line1 = 'Point at a card, press trigger to add it';
   else line1 = `${sys.nodes.length} assets · ${sys.links.length} links · trigger on a card = add`;
@@ -2224,6 +2225,45 @@ function highlightAssets(time) {
     ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
   }
   animatePortArrows(build.objects.values(), time);
+}
+
+// Live link preview: while a connection is half made, a band runs from the first asset
+// to where the ray points. Over a second asset it shows what the trigger would do
+// (EnergySystem.planConnect): the carrier's colour = connect, white = disconnect,
+// red = refused (the reason is on the HUD, linkLine). end: world point or null.
+const LINK_REFUSED = '#ff4a4a';
+function linkBandStep(end) {
+  build.plan = null;
+  const sys = build.system;
+  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
+  if (!selObj || !end) {
+    linkBand.set([]);
+    return;
+  }
+  let colour = '#ffd60a';
+  if (build.hovered !== null && build.hovered !== build.selected) {
+    const plan = sys.planConnect(build.selected, build.hovered);
+    build.plan = plan;
+    if (plan.action === 'refused') colour = LINK_REFUSED;
+    else if (plan.action === 'remove') colour = '#ffffff';
+    else colour = components.config.carriers?.[plan.links[0].carrier]?.color ?? colour;
+  }
+  linkBand.line.material.color.set(colour);
+  linkBand.set([selObj.localToWorld(_band.set(0, 0.012, 0)), end]);
+}
+const _band = new THREE.Vector3();
+
+// HUD line 1 while a connection is half made.
+function linkLine() {
+  const sys = build.system, first = sys.labelOf(sys.node(build.selected));
+  const plan = build.plan;
+  if (!plan) return `${first} selected: ${press()} on a second asset`;
+  const second = sys.labelOf(sys.node(build.hovered));
+  if (plan.action === 'refused') return `Can't connect: ${plan.reason}`;
+  if (plan.action === 'remove') return `${cap(press())} to disconnect ${first} and ${second}`;
+  const end = (id, port) => sys.labelOf(sys.node(id)) + (port ? '.' + port : '');
+  const what = plan.links.map((l) => `${l.carrier}${l.model ? ' ' + l.model : ''} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`).join(', ');
+  return `${cap(press())} to connect: ${what}`;
 }
 
 // HUD line while dragging.
@@ -2525,10 +2565,7 @@ function manualStep(time) {
   if (check && !outside) pal.showGhost(local.x, local.z, head, check.ok);
   else pal.hideGhost();
 
-  // Rubber band from the selected asset to where the ray points.
-  const selObj = build.selected !== null ? build.objects.get(build.selected) : null;
-  if (selObj && end) cornerEdges.set([selObj.localToWorld(new THREE.Vector3(0, 0.012, 0)), end]);
-  else cornerEdges.set([]);
+  linkBandStep(end);
 
   highlightAssets(time);
   updateModelPanel(tileObj, assetObj);
@@ -2547,10 +2584,7 @@ function manualStep(time) {
   else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
   else if (tile?.kind === 'done') line1 = n ? `Done: ${press()} to check the open ports` : 'Place at least one asset first';
   else if (build.selected !== null) {
-    const first = sys.labelOf(sys.node(build.selected));
-    line1 = build.hovered !== null && build.hovered !== build.selected
-      ? `${press()} to connect ${first} and ${sys.labelOf(sys.node(build.hovered))}`
-      : `${first} selected: ${press()} on a second asset`;
+    line1 = linkLine();
   } else if (build.hovered !== null) {
     const node = sys.node(build.hovered), ports = portSummary(node);
     line1 = `${sys.labelOf(node)}: ${press()} to connect, hold to move${ports ? ' · ' + ports : ''}`;
@@ -2568,7 +2602,7 @@ function manualStep(time) {
     line2 = desk ? `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · drag an asset = move it · drag elsewhere = turn the view`
       : `${plural(n, 'asset')}, ${plural(m, 'connection')} · asset, asset = connect · hold trigger = move · bumper = undo`;
   }
-  if (performance.now() < build.messageUntil && !build.drag) line1 = build.message;
+  if (performance.now() < build.messageUntil && !build.drag && !build.plan) line1 = build.message;
   setHud(line1, line2);
 }
 

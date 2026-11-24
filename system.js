@@ -199,18 +199,14 @@ export class EnergySystem {
     return this.links.filter((l) => (l.from === idA && l.to === idB) || (l.from === idB && l.to === idA));
   }
 
-  // Click on two nodes. Removes their links if they are connected already,
-  // otherwise adds the links their assets allow.
-  // Returns { action: 'added' | 'removed' | 'refused', links, reason? }.
-  connect(idA, idB) {
+  // What connect(idA, idB) would do, without changing anything (the live link preview).
+  // Returns { action: 'add' | 'remove' | 'refused', links, reason? }; the links to add
+  // have no id yet.
+  planConnect(idA, idB) {
     const a = this.node(idA), b = this.node(idB);
     if (!a || !b || idA === idB) return { action: 'refused', links: [], reason: 'pick two different assets' };
     const existing = this.linksBetween(idA, idB);
-    if (existing.length) {
-      this.links = this.links.filter((l) => !existing.includes(l));
-      this.history.push({ kind: 'unlink', links: existing });
-      return { action: 'removed', links: existing };
-    }
+    if (existing.length) return { action: 'remove', links: existing };
     const assetA = this.assetOf(a), assetB = this.assetOf(b);
     if (!assetA || !assetB) {
       const missing = !assetA ? a : b;
@@ -243,7 +239,7 @@ export class EnergySystem {
         if (pick.fromPort) taken(usedOut, from.id, 'out').push(pick.fromPort);
         if (pick.toPort) taken(usedIn, to.id, 'in').push(pick.toPort);
         made = {
-          id: this.nextId++, carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1,
+          carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1,
           fromPort: pick.fromPort, toPort: pick.toPort,
         };
         const linkModel = this.linkModel(carrier);
@@ -256,6 +252,21 @@ export class EnergySystem {
       if (made) added.push(made);
     }
     if (!added.length) return { action: 'refused', links: [], reason: lastFail };
+    return { action: 'add', links: added };
+  }
+
+  // Click on two nodes. Removes their links if they are connected already,
+  // otherwise adds the links their assets allow.
+  // Returns { action: 'added' | 'removed' | 'refused', links, reason? }.
+  connect(idA, idB) {
+    const plan = this.planConnect(idA, idB);
+    if (plan.action === 'remove') {
+      this.links = this.links.filter((l) => !plan.links.includes(l));
+      this.history.push({ kind: 'unlink', links: plan.links });
+      return { action: 'removed', links: plan.links };
+    }
+    if (plan.action === 'refused') return plan;
+    const added = plan.links.map((l) => ({ id: this.nextId++, ...l }));
     this.links.push(...added);
     this.history.push({ kind: 'link', linkIds: added.map((l) => l.id) });
     return { action: 'added', links: added };
