@@ -43,6 +43,8 @@ import {
 import { LinkView } from './links.js';
 import { insideTable, backAction } from './manual.js';
 import { createPalette } from './palette.js';
+import { SCHEMAS_URL } from './schema.js';
+import { addPortArrows, setPortStatus, animatePortArrows, createModelPanel } from './ports-view.js';
 
 window.__tableCubeLoaded = true;
 
@@ -177,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'models v1';
+const APP_VERSION = 'ports v3';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -556,10 +558,25 @@ async function addAssetLabels(d) {
 // Energy-system components (assets/components.json) and their models, loaded at page
 // load so problems show up in the log before entering AR.
 // loaded = true once the models are in too (or loading failed): the manual palette waits for it.
-const components = { config: null, templates: new Map(), colourTable: [], error: null, loaded: false };
+// schemas: assets/illuminator-schemas.json (Illuminator models: inputs, outputs, parameters;
+// see schema.js). Optional: without it assets have no ports and connect freely.
+const components = { config: null, schemas: null, templates: new Map(), colourTable: [], error: null, loaded: false };
+async function loadSchemas() {
+  try {
+    const res = await fetch(SCHEMAS_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const schemas = await res.json();
+    info('Illuminator schemas loaded', { models: schemas.count, commit: schemas.source?.commit?.slice(0, 7), fetchedAt: schemas.fetchedAt });
+    return schemas;
+  } catch (err) {
+    warn(`${SCHEMAS_URL} failed to load: assets get no Illuminator ports`, errText(err));
+    return null;
+  }
+}
 components.ready = (async () => {
   try {
-    const config = await loadComponents();
+    const [config, schemas] = await Promise.all([loadComponents(), loadSchemas()]);
+    components.schemas = schemas;
     components.config = config;
     components.colourTable = buildColourTable(config);
     info('components.json loaded', {
@@ -1711,6 +1728,7 @@ const build = {
   messageUntil: 0,       // …until this time (performance.now)
   lastTime: 0,
   lastTrigger: 0,
+  version: 0,            // bumped by syncScene: the info panel redraws when it changes
 };
 
 function say(text, level = 'info') {
@@ -1721,7 +1739,7 @@ function say(text, level = 'info') {
 
 function ensureSystem() {
   if (build.system || !components.config) return build.system;
-  build.system = new EnergySystem(components.config);
+  build.system = new EnergySystem(components.config, components.schemas);
   build.links = new LinkView(tableAnchor, components.config);
   return build.system;
 }
@@ -1734,6 +1752,7 @@ function headInTable() {
 
 // Makes the 3D scene match build.system (adds and removes asset objects and links).
 function syncScene() {
+  build.version++;
   const sys = build.system;
   const ids = new Set(sys ? sys.nodes.map((n) => n.id) : []);
   for (const [id, obj] of build.objects) {
@@ -1747,6 +1766,7 @@ function syncScene() {
     for (const node of sys.nodes) {
       if (build.objects.has(node.id)) continue;
       const obj = makeAssetObject(node, components.config, components.templates);
+      addPortArrows(obj, sys.portsOf(node)); // one floor arrow per Illuminator input / output
       faceTowards(obj, head);
       tableAnchor.add(obj);
       build.objects.set(node.id, obj);
@@ -1754,6 +1774,7 @@ function syncScene() {
     // Cables and tubes are routed around the assets (links.js → cables.js).
     const footprints = new Map([...build.objects].map(([id, o]) => [id, o.userData.footprintRadius]));
     build.links.sync(sys, { table: state.table, footprints });
+    for (const node of sys.nodes) setPortStatus(build.objects.get(node.id), sys.portStatus(node));
   }
   if (!ids.has(build.selected)) build.selected = null;
   if (!ids.has(build.hovered)) build.hovered = null;
@@ -1913,8 +1934,10 @@ function clickAsset(id) {
   const r = sys.connect(first.id, id);
   syncScene();
   if (r.action === 'added') {
-    const parts = r.links.map((l) => `${l.carrier} ${sys.labelOf(sys.node(l.from))} → ${sys.labelOf(sys.node(l.to))}`);
+    const end = (id, port) => sys.labelOf(sys.node(id)) + (port ? '.' + port : '');
+    const parts = r.links.map((l) => `${l.carrier}${l.model ? ' ' + l.model : ''} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`);
     say('Connected: ' + parts.join(', '));
+    info('Connected', r.links.map((l) => ({ carrier: l.carrier, model: l.model, from: end(l.from, l.fromPort), to: end(l.to, l.toPort), params: l.params })));
   } else if (r.action === 'removed') {
     say(`Disconnected ${sys.labelOf(first)} and ${sys.labelOf(node)}`);
   } else {
@@ -2032,6 +2055,7 @@ function highlightAssets(time) {
     ringMat.opacity = sel ? 0.7 + 0.3 * pulse : hov ? 1 : 0.5;
     ring.scale.setScalar(sel ? 1.12 + 0.1 * pulse : hov ? 1.12 : 1);
   }
+  animatePortArrows(build.objects.values(), time);
 }
 
 // Demo scene: the diorama is all there is; only recalibration.
@@ -2060,7 +2084,54 @@ const manual = {
   laidOut: false,        // palette placed along the table edge for this calibration
   hoverTile: null,       // palette tile under the controller ray
   lastTrigger: 0,
+  panel: null,           // createModelPanel(): the asset info panel ("model menu")
 };
+
+// "inputs 1/7 · outputs 0/3" for an asset with an Illuminator model, '' otherwise.
+function portSummary(node) {
+  const st = build.system?.portStatus(node);
+  if (!st) return '';
+  if (st.dynamic) return `takes any number of connections`;
+  const n = (list) => `${list.filter((p) => p.link).length}/${list.length}`;
+  return `inputs ${n(st.inputs)} · outputs ${n(st.outputs)}`;
+}
+
+// The info panel above the palette tile or the asset the ray points at (or the selected
+// asset): its Illuminator model, inputs and outputs, parameters and their values.
+const _panelPos = new THREE.Vector3();
+function updateModelPanel(tileObj, assetObj) {
+  const sys = build.system;
+  if (!manual.panel) {
+    manual.panel = createModelPanel();
+    tableAnchor.add(manual.panel.sprite);
+  }
+  const panel = manual.panel;
+  const config = components.config;
+  const nameOf = (id) => { const n = sys.node(id); return n ? sys.labelOf(n) : String(id); };
+  const tile = tileObj?.userData;
+  if (tile?.kind === 'asset') {
+    const def = config.assets[tile.type];
+    tileObj.localToWorld(_panelPos.set(0, tile.pickCentre.y * 2 + 0.03, 0));
+    tableAnchor.worldToLocal(_panelPos);
+    panel.show({
+      title: def.label ?? tile.type, accent: tile.colour ?? '#e6f4ff', def,
+      model: sys.modelOf({ type: tile.type }), status: null, params: sys.paramsFor(tile.type), nameOf,
+    }, _panelPos, 'tile:' + tile.type);
+    return;
+  }
+  const id = assetObj?.userData.nodeId ?? (manual.phase === 'connect' ? build.selected : null);
+  const node = id !== null && id !== undefined ? sys.node(id) : null;
+  const obj = node ? build.objects.get(node.id) : null;
+  if (!node || !obj) {
+    panel.hide();
+    return;
+  }
+  _panelPos.set(node.x, (obj.userData.height ?? 0.05) + 0.045, node.z);
+  panel.show({
+    title: sys.labelOf(node), accent: displayColour(config, node.colour), def: sys.assetOf(node),
+    model: sys.modelOf(node), status: sys.portStatus(node), params: node.params ?? null, nameOf,
+  }, _panelPos, `node:${node.id}:${build.version}`);
+}
 
 // The aim of the controller ray (or the mouse in ?preview=1): { origin, dir, point, how }.
 function currentAim() {
@@ -2100,6 +2171,7 @@ function resetManual() {
   manual.phase = 'place';
   manual.laidOut = false;
   manual.hoverTile = null;
+  manual.panel?.hide();
   if (manual.palette) {
     manual.palette.group.visible = false;
     manual.palette.hideGhost();
@@ -2209,7 +2281,17 @@ function manualNext() {
     }
     setManualPhase('connect', `${plural(sys.nodes.length, 'asset')} placed. Now ${press()} on an asset, then on another`);
   } else if (manual.phase === 'connect') {
-    setManualPhase('done', `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`);
+    // Illuminator needs every input and output connected; finishing is allowed (some
+    // inputs come from data the table has no asset for yet), but the open ones are listed.
+    const open = sys.openPorts();
+    const done = `Finished: ${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
+    if (!open.length) {
+      setManualPhase('done', done + '. Every input and output is connected');
+      return;
+    }
+    const names = open.slice(0, 3).map((p) => `${sys.labelOf(p.node)}.${p.name}`).join(', ');
+    setManualPhase('done', `${done}. ${plural(open.length, 'port')} still open: ${names}${open.length > 3 ? '…' : ''}`);
+    warn('Finished with open Illuminator ports', open.map((p) => ({ asset: sys.labelOf(p.node), id: p.node.id, side: p.side, port: p.name })));
   }
 }
 
@@ -2259,6 +2341,8 @@ function manualStep(time) {
   const tileObj = aim ? pickAsset(aim.origin, aim.dir, pal.pickables()) : null;
   const assetObj = !tileObj && aim && manual.phase === 'connect' && build.objects.size
     ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null;
+  // Outside connecting, assets are picked only for the info panel.
+  const infoObj = assetObj ?? (!tileObj && aim && build.objects.size ? pickAsset(aim.origin, aim.dir, build.objects.values()) : null);
   manual.hoverTile = tileObj;
   build.hovered = assetObj ? assetObj.userData.nodeId : null;
   const local = aim?.point && !tileObj && !assetObj ? tableAnchor.worldToLocal(_c.copy(aim.point)) : null;
@@ -2286,6 +2370,7 @@ function manualStep(time) {
   else cornerEdges.set([]);
 
   highlightAssets(time);
+  updateModelPanel(tileObj, infoObj);
   pal.update(time, tileObj);
   build.links?.update(dt);
 
@@ -2307,12 +2392,16 @@ function manualStep(time) {
     if (tile?.kind === 'back') line1 = 'Back to placing assets';
     else if (tile?.kind === 'done') line1 = `Done connecting (${plural(m, 'connection')}): ${press()} to finish`;
     else if (build.selected !== null) line1 = `${sys.labelOf(sys.node(build.selected))} selected: click a second asset`;
-    else if (build.hovered !== null) line1 = `${sys.labelOf(sys.node(build.hovered))}: ${press()} to select`;
+    else if (build.hovered !== null) {
+      const node = sys.node(build.hovered), ports = portSummary(node);
+      line1 = `${sys.labelOf(node)}: ${press()} to select${ports ? ' · ' + ports : ''}`;
+    }
     else line1 = `Connect: ${press()} on an asset, then on another (${plural(m, 'connection')})`;
     line2 = desk ? 'click a connected pair again = disconnect · drag to turn the view'
       : 'again on a connected pair = disconnect · bumper = undo · hold = recalibrate';
   } else {
-    line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}`;
+    const open = sys.openPorts().length;
+    line1 = `Energy system: ${plural(n, 'asset')}, ${plural(m, 'connection')}${open ? `, ${plural(open, 'open port')}` : ''}`;
     line2 = desk ? 'Undo / back = edit the connections · Start over = clear the table'
       : 'bumper = edit the connections · hold = start over';
   }

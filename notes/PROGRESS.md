@@ -9,7 +9,8 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
-| `ar-12-illuminator-models` | **Done, not merged.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Checked in the screen preview; needs a headset test before merging into main. |
+| `ar-47-illuminator-schema` | AR-47, pushed onto `ar-12-illuminator-models` (same commits). |
+| `ar-12-illuminator-models` | **Done, PR to main next.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Also holds AR-47: Illuminator schemas, port limits, floor arrows, info panel with parameters, hydrogen tubes as Pipelines. Checked in the screen preview; needs a headset test. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
 | `scenario-import` | **In progress.** Illuminator scenarios in the diorama with a timeline panel. 1 commit ahead of its base, but main has moved on: merging it now conflicts in `diorama.js`, `main.js` and `style.css`. |
 | `connections` | Merged into main (PR #2). |
@@ -35,12 +36,16 @@ Roughly in priority order. Put your name next to an item when you pick it up.
 Every task has an id `AR-<number>`. Use it in branch names, commit messages and
 conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
-keeps its id when it moves to Done. **Next free id: AR-13.**
+keeps its id when it moves to Done. **Next free id: AR-13.** (AR-47 is taken already: it was
+assigned directly to the schema task. Skip it when the count gets there.)
 
 - [ ] **AR-1** Bring main into `scenario-import` (it conflicts since the connections merge),
       headset-test it and merge it into main.
 - [ ] **AR-2** Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
 - [ ] **AR-3** Export the `EnergySystem` (`system.js`) as Illuminator YAML. This is pure logic, so test it in Node.
+      Use the schema (AR-47): each node is a model with its `params`; each link connects
+      `fromPort` → `toPort`. A link with `model` (every hydrogen tube = `Pipeline`) is a
+      component of its own: `from.fromPort → Pipeline.flow_in`, `Pipeline.flow_out → to.toPort`.
 - [ ] **AR-4** Colour-card detection: fix the camera-to-view mapping. The ordered list is in
       DETECTION_NOTES.md: check the mapping in `?debug=1`, find cards with a homography,
       reject grey-only calibrations, report "no card here".
@@ -104,6 +109,7 @@ back and play on the table.
 |---|---|
 | YAML + CSV → diorama with a timeline (read a scenario) | In progress on `scenario-import` (AR-1) |
 | Map Illuminator model types ↔ our assets, both ways (`illuminator-types.json`) | Read direction in progress on `scenario-import` (AR-1) |
+| Know each model's inputs, outputs and parameters (`illuminator-schemas.json`) | Done on `ar-47-illuminator-schema` (AR-47): links record `fromPort` / `toPort`, nodes keep `params` |
 | Energy system → YAML (write a scenario) | Not started (AR-3) |
 | Send the YAML to Illuminator and get the output back | Not started; open question below (AR-2) |
 | Edit the topology of a loaded scenario on the table, then re-run | Not started |
@@ -112,10 +118,40 @@ back and play on the table.
 - Where does Illuminator run (laptop, server), and how does the headset reach it? One
   option is an endpoint on the dev server that runs Illuminator and returns the CSV.
 - How long does a run take? Is it fine to wait for it, or does it need a progress display?
-- Which Illuminator models and parameters does each meta-asset map to?
+- Which Illuminator models and parameters does each meta-asset map to? (Models: the
+  `illuminator` field in `components.json`; parameters: the schema defaults, AR-47.)
+- Illuminator wants every input connected, but many inputs (PV weather: `Az`, `G_Bn`, …)
+  come from a CSV reader that has no asset on the table. Add a CSV/weather asset, or fill
+  those inputs automatically in the YAML export (AR-3)?
 
 ## Done
 
+- 2026-11-24: **AR-47** Illuminator model schemas in manual and cards mode.
+  - `tools/illuminator-schemas.cjs` reads the Illuminator docs (`gh-pages` of
+    illuminator-team/website, plus the Python source for the models whose page omits the
+    keys) and writes `assets/illuminator-schemas.json` (29 models) and
+    `notes/ILLUMINATOR_SCHEMAS.md`. Refresh: `node tools/illuminator-schemas.cjs --fill-from-source --out assets/illuminator-schemas.json --md notes/ILLUMINATOR_SCHEMAS.md`.
+  - `schema.js` (pure, tested): ports per model, port choice for a new link (same name
+    on both sides first, then a name that fits the carrier, then the first free one),
+    floor-arrow layout, panel rows.
+  - `system.js`: a model takes no more connections than it has inputs / outputs; each
+    link records `fromPort` / `toPort`, each node its own `params` (schema defaults).
+    Collector and CSV build their ports at run time, so they take any number.
+  - `ports-view.js`: a green arrow per input (left of the asset, pointing in) and an
+    orange arrow per output (right, pointing out); open ports pulse, connected ones go faint.
+    The info panel (pointing at a palette tile or an asset) lists the model, its inputs and
+    outputs with what they connect to, and the parameters with their values.
+  - Finishing with open ports is allowed but the HUD and the log list them.
+  - The four Pipeline assets (and their GLBs) are gone: a hydrogen connection is already
+    drawn as a tube, so that is the pipe. The Pipes page keeps the valve and the joint.
+    Decided: every hydrogen tube is an Illuminator `Pipeline`. The hydrogen carrier in
+    `components.json` has `"illuminator": "Pipeline"`, so a hydrogen link gets `model` and
+    its own `params` (the Pipeline defaults: `L` 100 m, `A` 2 m², …). The info panel marks
+    it "(Pipeline)". APP_VERSION `ports v3`.
+    Decided: the drawn tube and the Pipeline parameters are not linked. The tube's length
+    on the table says nothing about `L`; the layout is a schematic.
+  - The house (`Load-Residential`) is smaller on the table: `size_m` 0.14 → 0.10.
+  - APP_VERSION `ports v2`. 74 unit tests pass. Checked with `?preview=1&build=manual`.
 - 2026-11-24: **AR-12** Models for every Illuminator component type, in manual mode.
   - 34 GLBs in `assets/models/illuminator/`, named after the Illuminator types (e.g.
     `PV-ground`, `Load-Industrial`, `H2Storage-sphere`): 21 types, several with variants.
@@ -162,6 +198,11 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-47: Illuminator schemas, port limits, floor arrows and the info
+  panel (branch `ar-47-illuminator-schema`, on top of AR-12). Removed the Pipeline assets
+  (the hydrogen tube is the pipe) and made the house smaller. Decided: every hydrogen tube
+  is an Illuminator Pipeline with its own parameters. 75 unit tests pass.
+  Headset check to do: the panel text size and the arrows on the ML2.
 - **2026-11-24**: AR-12: models for every Illuminator component and palette pages in
   manual mode. Unit tests pass (60). Headset check still to do: thin parts (pipes, blades)
   at table scale, and reaching the tab row with the controller.

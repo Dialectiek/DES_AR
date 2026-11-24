@@ -10,9 +10,11 @@ const root = new URL('../', import.meta.url);
 const config = JSON.parse(fs.readFileSync(new URL('assets/components.json', root), 'utf8'));
 const { assets, carriers } = config;
 
+// Pipeline is left out on purpose: a hydrogen connection is drawn as a tube (cables.js),
+// not placed as an asset.
 const ILLUMINATOR_TYPES = [
   'Collector', 'GridConnection', 'PV', 'Wind', 'Load', 'LoadEV', 'LoadHeatpump', 'EV', 'Battery',
-  'H2Buffer', 'Electrolyzer', 'ZZE', 'Thermolyzer', 'Compressor', 'H2demand', 'Pipeline',
+  'H2Buffer', 'Electrolyzer', 'ZZE', 'Thermolyzer', 'Compressor', 'H2demand',
   'H2Storage', 'H2Valve', 'H2Joint', 'H2Controller', 'H2PSA',
 ];
 
@@ -51,7 +53,7 @@ test('Illuminator components connect through their carriers', () => {
   assert.deepEqual(link('Wind-small', 'Electrolyzer'), [{ carrier: 'electricity', forward: true }]);
   assert.deepEqual(link('Electrolyzer', 'Compressor'), [{ carrier: 'hydrogen', forward: true }]);
   assert.deepEqual(link('Compressor', 'H2Storage'), [{ carrier: 'hydrogen', forward: true }]);
-  assert.deepEqual(link('Pipeline', 'Pipeline-turn-left'), [{ carrier: 'hydrogen', forward: true }]);
+  assert.deepEqual(link('H2Valve', 'H2Joint'), [{ carrier: 'hydrogen', forward: true }]);
   assert.deepEqual(link('H2Storage', 'H2demand-station'), [{ carrier: 'hydrogen', forward: true }]);
   // Data goes to the collector and the controller.
   assert.deepEqual(link('Collector', 'Battery-home'), [{ carrier: 'data', forward: false }]);
