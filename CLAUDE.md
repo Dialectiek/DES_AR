@@ -75,6 +75,9 @@ Data in `assets/`:
 
 - `main` is the working version the team demos. Do feature work on a branch and merge it
   when it works on the headset.
+- Name a new branch after its task: `ar-<number>-<short-slug>`, lowercase, for example
+  `ar-3-yaml-export` for AR-3. One task per branch. If the work has no task yet, add it to
+  the todo in notes/PROGRESS.md first to get an id.
 - Current branches are listed with their status in notes/PROGRESS.md.
 
 ## Keep notes/PROGRESS.md current
@@ -85,6 +88,6 @@ Done, add a dated line to the log, and adjust the roadmap.
 
 Every task has an id `AR-<number>`. A new task takes the "Next free id" noted in
 notes/PROGRESS.md, and that note is bumped in the same change. Ids are never reused or
-renumbered, and a task keeps its id in Done. Put the id in branch names and commit
-messages (`ar-3-yaml-export`, "AR-3: ..."). Keep this file (CLAUDE.md) for
+renumbered, and a task keeps its id in Done. Start commit messages with the id
+("AR-3: ...") and name branches after the task (see Git). Keep this file (CLAUDE.md) for
 things that stay true; put status in notes/PROGRESS.md.
