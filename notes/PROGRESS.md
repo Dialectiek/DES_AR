@@ -31,7 +31,13 @@ Last updated: 2026-11-24
     readers and types without an asset (e.g. `Controller_T1`) are left out and logged.
   - One case: `cases/hydrogen-example.yaml` (written for this, not run in Illuminator yet).
     `vendor/js-yaml.mjs` is the same file as on `scenario-import`.
-  - Checked with `?preview=1&build=yaml`. Next: headset test, then merge after AR-13.
+  - Controllers: a new palette page with one avatar per Illuminator controller type
+    (`Controller_T1`, `ControllerT3Congestion`, `ControllerEV`, three H2 controllers), each
+    with its own shirt colour (`tools/controller-avatars.mjs`). The old H2 controller model is
+    replaced. `ControllerEV` is not in the schemas yet (`noSchema`), so it has no port limit.
+    With them, the EV case builds with its connections.
+  - Checked with `?preview=1&build=yaml` (`yaml v2`). Next: headset test (rigged avatars are
+    new there), then merge after AR-13.
 
 - **Illuminator scenario import** (`scenario-import`, Ruiqi)
   - The diorama is built from an Illuminator/mosaik YAML and played from its output CSV
@@ -246,6 +252,11 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-14: controllers. A Controllers palette page with an avatar per
+  Illuminator controller type, each with its own shirt colour, generated from one source
+  avatar by `tools/controller-avatars.mjs` (textures shrunk to 512², 553 KB each). Rigged
+  models are cloned with SkeletonUtils (`cloneModel` in `assets.js`). The EV case now has
+  its controller and 10 connections.
 - **2026-11-24**: AR-14: YAML mode. A case from `cases/` (an Illuminator scenario YAML) is
   built on the table with our assets, then edited like manual mode. `yaml-import.js` +
   tests, `cases/hydrogen-example.yaml`, start-page case picker, `?case=`, toolbar button.

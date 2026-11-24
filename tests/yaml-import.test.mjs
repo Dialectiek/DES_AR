@@ -37,7 +37,7 @@ models:
 - { name: CSVload, type: CSV }
 - { name: Load1, type: Load, parameters: { houses: 5 } }
 - { name: PV1, type: PV, parameters: { peak_power: 600 } }
-- { name: Controller1, type: Controller_T1 }
+- { name: Controller1, type: MysteryController }
 connections:
 - { from: CSVload.load, to: Load1.load }
 - { from: PV1.pv_gen, to: Controller1.pv_gen }
@@ -137,4 +137,13 @@ test('layoutNodes: a cycle does not hang, a crowded column wraps', () => {
   for (const n of nodes) assert.ok(insideTable(n.x, n.z, table.length, table.width));
   const xs = new Set(nodes.map((n) => n.x));
   assert.ok(xs.size >= 3);
+});
+
+test('EV case: the ControllerEV avatar is placed and wired with the YAML ports', () => {
+  const r = importScenario(parseScenario(read('cases/EV_scenario1.yaml')), config, schemas, table);
+  const ctrl = r.save.nodes.find((n) => n.name === 'Controller1');
+  assert.equal(ctrl.type, 'ControllerEV');
+  const into = r.save.links.filter((l) => l.to === ctrl.id);
+  assert.ok(into.some((l) => l.toPort === 'load_EV'));
+  assert.ok(r.skipped.every((s) => s.type === 'CSV'));
 });

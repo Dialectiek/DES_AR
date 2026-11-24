@@ -13,12 +13,13 @@
     "gray": null,
     "brown": null
   },
-  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset with \"palette\": false is not on the palette (it stays for cards mode, saves and the export). An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m. Illuminator Pipelines have no asset: a hydrogen connection is drawn as a tube instead.",
+  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset with \"palette\": false is not on the palette (it stays for cards mode, saves and the export). An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m. Illuminator Pipelines have no asset: a hydrogen connection is drawn as a tube instead. Controllers are all the same avatar with a different shirt colour per Illuminator controller type (tools/controller-avatars.mjs); they have no port_* nodes.",
   "paletteGroups": [
     { "key": "electricity", "label": "Electricity", "colour": "#ffe14d" },
     { "key": "loads", "label": "Loads", "colour": "#ff9a6b" },
     { "key": "hydrogen", "label": "Hydrogen", "colour": "#40e0ff" },
     { "key": "pipes", "label": "Pipes", "colour": "#8fe8ff" },
+    { "key": "controllers", "label": "Controllers", "colour": "#d48cff" },
     { "key": "other", "label": "Other", "colour": "#e8e8e8" }
   ],
   "assets": {
@@ -376,11 +377,62 @@
       "consumes": ["hydrogen"],
       "power_kW": 30
     },
+    "Controller_T1": {
+      "label": "Power controller (T1)",
+      "group": "controllers",
+      "illuminator": "Controller_T1",
+      "model": "assets/models/illuminator/Controller_T1.glb",
+      "size_m": 0.08,
+      "produces": ["data"],
+      "consumes": ["data"],
+      "power_kW": 1
+    },
+    "ControllerT3Congestion": {
+      "label": "Congestion controller (T3)",
+      "group": "controllers",
+      "illuminator": "ControllerT3Congestion",
+      "model": "assets/models/illuminator/ControllerT3Congestion.glb",
+      "size_m": 0.08,
+      "produces": ["data"],
+      "consumes": ["data"],
+      "power_kW": 1
+    },
+    "ControllerEV": {
+      "label": "EV controller",
+      "group": "controllers",
+      "illuminator": "ControllerEV",
+      "noSchema": "ControllerEV is not in the Illuminator docs that assets/illuminator-schemas.json is made from, so it has no port list (any number of connections). Remove this when the schemas have it.",
+      "model": "assets/models/illuminator/ControllerEV.glb",
+      "size_m": 0.08,
+      "produces": ["data"],
+      "consumes": ["data"],
+      "power_kW": 1
+    },
     "H2Controller": {
       "label": "H2 controller",
-      "group": "hydrogen",
+      "group": "controllers",
       "illuminator": "H2Controller",
       "model": "assets/models/illuminator/H2Controller.glb",
+      "size_m": 0.08,
+      "produces": ["data"],
+      "consumes": ["data"],
+      "power_kW": 1
+    },
+    "H2Controller2": {
+      "label": "H2 controller 2",
+      "group": "controllers",
+      "illuminator": "H2Controller2",
+      "model": "assets/models/illuminator/H2Controller2.glb",
+      "size_m": 0.08,
+      "produces": ["data"],
+      "consumes": ["data"],
+      "power_kW": 1
+    },
+    "H2ControllerExample": {
+      "label": "H2 controller (example)",
+      "group": "controllers",
+      "illuminator": "H2ControllerExample",
+      "model": "assets/models/illuminator/H2ControllerExample.glb",
       "size_m": 0.08,
       "produces": ["data"],
       "consumes": ["data"],

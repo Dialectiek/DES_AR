@@ -14,7 +14,7 @@
 // Note: Magic Leap 2 is an additive display: dark = transparent, so everything is bright.
 
 import * as THREE from 'three';
-import { displayColour } from './assets.js';
+import { displayColour, cloneModel } from './assets.js';
 import { colourForType } from './system.js';
 import { paletteSlots, paletteGroups } from './manual.js';
 
@@ -117,7 +117,7 @@ function placeholderCube(size, colour) {
 function miniModel(template, size, colour) {
   if (!template) return { object: placeholderCube(size * 0.7, colour), height: size * 0.7 };
   const s = size / Math.max(template.height, template.footprint, 1e-6);
-  const object = template.object.clone(true);
+  const object = cloneModel(template.object);
   object.scale.setScalar(s);
   return { object, height: template.height * s };
 }
@@ -336,7 +336,7 @@ export function createPalette(config, templates) {
     const colour = displayColour(config, colourForType(config, type));
     let object;
     if (template) {
-      object = template.object.clone(true);
+      object = cloneModel(template.object);
       object.traverse((o) => {
         if (!o.isMesh) return;
         const mats = (Array.isArray(o.material) ? o.material : [o.material]).map((m) => {

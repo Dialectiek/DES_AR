@@ -10,7 +10,7 @@ const index = indexSchemas(schemas);
 
 test('every asset with an "illuminator" type has a schema entry', () => {
   for (const [key, def] of Object.entries(components.assets)) {
-    if (!def.illuminator) continue;
+    if (!def.illuminator || def.noSchema) continue;
     assert.ok(modelOf(index, def), `${key}: no schema for Illuminator model "${def.illuminator}"`);
   }
 });

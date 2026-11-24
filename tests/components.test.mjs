@@ -42,12 +42,15 @@ test('every Illuminator component type has at least one asset', () => {
 
 test('palette pages: in order, none too long for one table edge', () => {
   const pages = paletteGroups(config);
-  assert.deepEqual(pages.map((p) => p.key), ['electricity', 'loads', 'hydrogen', 'pipes', 'other']);
+  assert.deepEqual(pages.map((p) => p.key), ['electricity', 'loads', 'hydrogen', 'pipes', 'controllers', 'other']);
   // Every asset is on one page, except those marked "palette": false.
   const onPalette = Object.keys(assets).filter((k) => assets[k].palette !== false);
   assert.equal(pages.reduce((n, p) => n + p.types.length, 0), onPalette.length);
   assert.deepEqual(pages.at(-1).types, ['office-pv', 'banana-car']);
   for (const p of pages) assert.ok(p.types.length <= 12, `${p.key} has ${p.types.length} assets`);
+  // Every Illuminator controller is on the Controllers page.
+  const controllers = pages.find((p) => p.key === 'controllers').types;
+  assert.ok(controllers.includes('Controller_T1') && controllers.includes('ControllerEV') && controllers.includes('H2Controller'));
 });
 
 test('Illuminator components connect through their carriers', () => {

@@ -56,6 +56,7 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 | `sound.js` | Feedback sounds made with WebAudio (no files); muted with `?sound=0`. |
 | `diorama.js` / `asset-labels.js` | Diorama scene loader and flows / floating asset info panels. |
 | `tools/illuminator-schemas.cjs` | Reads the Illuminator docs and writes `assets/illuminator-schemas.json` (refresh command in its header). |
+| `tools/controller-avatars.mjs` | Makes the controller GLBs (one per Illuminator controller type) from the avatar in `tools/sources/avatar-cyan.glb`, each with its own shirt colour. Run `node tools/controller-avatars.mjs`. |
 | `tools/model-builders.js` | Procedural source of the GLBs in `assets/models/`; export with `tools/export-models.html` (`node devserver.mjs 8001 --allow-save`). Source geometry a builder reads (the EWI tower STL) is in `tools/sources/`. |
 
 Cases for the YAML mode are in `cases/`: one YAML per case, listed in `cases/index.json`
@@ -66,7 +67,8 @@ Data in `assets/`:
   `paletteGroups` + each asset's `group` split the manual palette into pages.
 - `models/illuminator/`: one GLB per Illuminator component type (and variants) except
   Pipeline, which is drawn as the hydrogen tube between two assets; connection
-  points (`port_*`) all at 1.0 m. Their builder source is not in the repo.
+  points (`port_*`) all at 1.0 m. Their builder source is not in the repo, except the
+  controllers: a rigged avatar per controller type, made by `tools/controller-avatars.mjs`.
 - `illuminator-schemas.json`: every Illuminator model's parameters, inputs, outputs and
   states, generated from the docs. An asset's `illuminator` field in `components.json` points
   into it. Don't edit it by hand; regenerate it.
