@@ -148,6 +148,8 @@ back and play on the table.
     `components.json` has `"illuminator": "Pipeline"`, so a hydrogen link gets `model` and
     its own `params` (the Pipeline defaults: `L` 100 m, `A` 2 m², …). The info panel marks
     it "(Pipeline)". APP_VERSION `ports v3`.
+    Decided: the drawn tube and the Pipeline parameters are not linked. The tube's length
+    on the table says nothing about `L`; the layout is a schematic.
   - The house (`Load-Residential`) is smaller on the table: `size_m` 0.14 → 0.10.
   - APP_VERSION `ports v2`. 74 unit tests pass. Checked with `?preview=1&build=manual`.
 - 2026-11-24: **AR-12** Models for every Illuminator component type, in manual mode.

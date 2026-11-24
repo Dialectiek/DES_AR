@@ -14,6 +14,8 @@
 // Pipeline) is a component of its own in the scenario: it gets link.model and its own
 // link.params. In the YAML the link becomes from.fromPort → <model>.<first input> and
 // <model>.<first output> → to.toPort.
+// The parameters are never derived from the drawing: a pipe's length `L` is its own
+// value, not the length of the tube on the table (the table is a schematic, not to scale).
 
 import { indexSchemas, modelOf, portsOfModel, defaultParameters, pickPorts } from './schema.js';
 
