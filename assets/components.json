@@ -13,6 +13,14 @@
     "gray": null,
     "brown": null
   },
+  "about_paletteGroups": "Manual mode shows one palette page at a time, switched with tabs in front of the palette. An asset's \"group\" picks its page; assets without a known group go to the last page. \"illuminator\" is the Illuminator model type the asset stands for (for the YAML export). Every new model has its connection points (port_* nodes) at 1.0 m.",
+  "paletteGroups": [
+    { "key": "electricity", "label": "Electricity", "colour": "#ffe14d" },
+    { "key": "loads", "label": "Loads", "colour": "#ff9a6b" },
+    { "key": "hydrogen", "label": "Hydrogen", "colour": "#40e0ff" },
+    { "key": "pipes", "label": "Pipes", "colour": "#8fe8ff" },
+    { "key": "other", "label": "Other", "colour": "#e8e8e8" }
+  ],
   "assets": {
     "house-pv": {
       "label": "House with PV",
@@ -101,6 +109,346 @@
         "electricity"
       ],
       "power_kW": 2
+    },
+    "GridConnection": {
+      "label": "Grid connection",
+      "group": "electricity",
+      "illuminator": "GridConnection",
+      "model": "assets/models/illuminator/GridConnection.glb",
+      "size_m": 0.1,
+      "produces": ["electricity", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 20
+    },
+    "PV-ground": {
+      "label": "PV field",
+      "group": "electricity",
+      "illuminator": "PV",
+      "model": "assets/models/illuminator/PV-ground.glb",
+      "size_m": 0.13,
+      "produces": ["electricity", "data"],
+      "consumes": [],
+      "power_kW": 4.8
+    },
+    "PV-carport": {
+      "label": "PV carport",
+      "group": "electricity",
+      "illuminator": "PV",
+      "model": "assets/models/illuminator/PV-carport.glb",
+      "size_m": 0.11,
+      "produces": ["electricity", "data"],
+      "consumes": [],
+      "power_kW": 6
+    },
+    "Wind-small": {
+      "label": "Small wind turbine",
+      "group": "electricity",
+      "illuminator": "Wind",
+      "model": "assets/models/illuminator/Wind-small.glb",
+      "size_m": 0.17,
+      "produces": ["electricity", "data"],
+      "consumes": [],
+      "power_kW": 3
+    },
+    "Wind-large": {
+      "label": "Large wind turbine",
+      "group": "electricity",
+      "illuminator": "Wind",
+      "model": "assets/models/illuminator/Wind-large.glb",
+      "size_m": 0.3,
+      "produces": ["electricity", "data"],
+      "consumes": [],
+      "power_kW": 50
+    },
+    "Battery-home": {
+      "label": "Home battery",
+      "group": "electricity",
+      "illuminator": "Battery",
+      "model": "assets/models/illuminator/Battery-home.glb",
+      "size_m": 0.06,
+      "produces": ["electricity", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 5
+    },
+    "Battery-container": {
+      "label": "Battery container",
+      "group": "electricity",
+      "illuminator": "Battery",
+      "model": "assets/models/illuminator/Battery-container.glb",
+      "size_m": 0.14,
+      "produces": ["electricity", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 30
+    },
+    "EV-car": {
+      "label": "Electric car",
+      "group": "electricity",
+      "illuminator": "EV",
+      "model": "assets/models/illuminator/EV-car.glb",
+      "size_m": 0.11,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 11
+    },
+    "EV-van": {
+      "label": "Electric van",
+      "group": "electricity",
+      "illuminator": "EV",
+      "model": "assets/models/illuminator/EV-van.glb",
+      "size_m": 0.12,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 22
+    },
+    "Load-Residential": {
+      "label": "House",
+      "group": "loads",
+      "illuminator": "Load",
+      "model": "assets/models/illuminator/Load-Residential.glb",
+      "size_m": 0.14,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 3
+    },
+    "Load-Residential-terraced": {
+      "label": "Terraced houses",
+      "group": "loads",
+      "illuminator": "Load",
+      "model": "assets/models/illuminator/Load-Residential-terraced.glb",
+      "size_m": 0.21,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 10
+    },
+    "Load-Office": {
+      "label": "Office",
+      "group": "loads",
+      "illuminator": "Load",
+      "model": "assets/models/illuminator/Load-Office.glb",
+      "size_m": 0.2,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 25
+    },
+    "Load-Industrial": {
+      "label": "Factory",
+      "group": "loads",
+      "illuminator": "Load",
+      "model": "assets/models/illuminator/Load-Industrial.glb",
+      "size_m": 0.3,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 60
+    },
+    "LoadEV": {
+      "label": "EV charging hub",
+      "group": "loads",
+      "illuminator": "LoadEV",
+      "model": "assets/models/illuminator/LoadEV.glb",
+      "size_m": 0.16,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 22
+    },
+    "LoadHeatpump": {
+      "label": "Heat pump",
+      "group": "loads",
+      "illuminator": "LoadHeatpump",
+      "model": "assets/models/illuminator/LoadHeatpump.glb",
+      "size_m": 0.06,
+      "produces": ["heat", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 3
+    },
+    "LoadHeatpump-house": {
+      "label": "House with heat pump",
+      "group": "loads",
+      "illuminator": "LoadHeatpump",
+      "model": "assets/models/illuminator/LoadHeatpump-house.glb",
+      "size_m": 0.14,
+      "produces": ["data"],
+      "consumes": ["electricity"],
+      "power_kW": 5
+    },
+    "Electrolyzer": {
+      "label": "Electrolyser",
+      "group": "hydrogen",
+      "illuminator": "Electrolyzer",
+      "model": "assets/models/illuminator/Electrolyzer.glb",
+      "size_m": 0.17,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 40
+    },
+    "ZZE": {
+      "label": "Electrolyser + buffer",
+      "group": "hydrogen",
+      "illuminator": "ZZE",
+      "model": "assets/models/illuminator/ZZE.glb",
+      "size_m": 0.2,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 40
+    },
+    "Thermolyzer": {
+      "label": "Thermolyser",
+      "group": "hydrogen",
+      "illuminator": "Thermolyzer",
+      "model": "assets/models/illuminator/Thermolyzer.glb",
+      "size_m": 0.17,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["electricity"],
+      "power_kW": 30
+    },
+    "H2PSA": {
+      "label": "H2 purifier (PSA)",
+      "group": "hydrogen",
+      "illuminator": "H2PSA",
+      "model": "assets/models/illuminator/H2PSA.glb",
+      "size_m": 0.1,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "Compressor": {
+      "label": "Compressor",
+      "group": "hydrogen",
+      "illuminator": "Compressor",
+      "model": "assets/models/illuminator/Compressor.glb",
+      "size_m": 0.1,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen", "electricity"],
+      "power_kW": 20
+    },
+    "H2Buffer": {
+      "label": "H2 buffer",
+      "group": "hydrogen",
+      "illuminator": "H2Buffer",
+      "model": "assets/models/illuminator/H2Buffer.glb",
+      "size_m": 0.09,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 10
+    },
+    "H2Storage": {
+      "label": "H2 storage",
+      "group": "hydrogen",
+      "illuminator": "H2Storage",
+      "model": "assets/models/illuminator/H2Storage.glb",
+      "size_m": 0.16,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "H2Storage-sphere": {
+      "label": "H2 sphere",
+      "group": "hydrogen",
+      "illuminator": "H2Storage",
+      "model": "assets/models/illuminator/H2Storage-sphere.glb",
+      "size_m": 0.16,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 30
+    },
+    "H2demand-station": {
+      "label": "H2 filling station",
+      "group": "hydrogen",
+      "illuminator": "H2demand",
+      "model": "assets/models/illuminator/H2demand-station.glb",
+      "size_m": 0.16,
+      "produces": ["data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 10
+    },
+    "H2demand-industry": {
+      "label": "H2 industry",
+      "group": "hydrogen",
+      "illuminator": "H2demand",
+      "model": "assets/models/illuminator/H2demand-industry.glb",
+      "size_m": 0.3,
+      "produces": ["data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 30
+    },
+    "H2Controller": {
+      "label": "H2 controller",
+      "group": "hydrogen",
+      "illuminator": "H2Controller",
+      "model": "assets/models/illuminator/H2Controller.glb",
+      "size_m": 0.08,
+      "produces": ["data"],
+      "consumes": ["data"],
+      "power_kW": 1
+    },
+    "Pipeline": {
+      "label": "Pipeline 12 m",
+      "group": "pipes",
+      "illuminator": "Pipeline",
+      "model": "assets/models/illuminator/Pipeline.glb",
+      "size_m": 0.156,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "Pipeline-short": {
+      "label": "Pipeline 6 m",
+      "group": "pipes",
+      "illuminator": "Pipeline",
+      "model": "assets/models/illuminator/Pipeline-short.glb",
+      "size_m": 0.078,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "Pipeline-turn-left": {
+      "label": "Pipe bend left",
+      "group": "pipes",
+      "illuminator": "Pipeline",
+      "model": "assets/models/illuminator/Pipeline-turn-left.glb",
+      "size_m": 0.045,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "Pipeline-turn-right": {
+      "label": "Pipe bend right",
+      "group": "pipes",
+      "illuminator": "Pipeline",
+      "model": "assets/models/illuminator/Pipeline-turn-right.glb",
+      "size_m": 0.045,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "H2Valve": {
+      "label": "H2 valve (split)",
+      "group": "pipes",
+      "illuminator": "H2Valve",
+      "model": "assets/models/illuminator/H2Valve.glb",
+      "size_m": 0.08,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "H2Joint": {
+      "label": "H2 joint (merge)",
+      "group": "pipes",
+      "illuminator": "H2Joint",
+      "model": "assets/models/illuminator/H2Joint.glb",
+      "size_m": 0.08,
+      "produces": ["hydrogen", "data"],
+      "consumes": ["hydrogen"],
+      "power_kW": 20
+    },
+    "Collector": {
+      "label": "Data collector",
+      "group": "other",
+      "illuminator": "Collector",
+      "model": "assets/models/illuminator/Collector.glb",
+      "size_m": 0.08,
+      "produces": [],
+      "consumes": ["data"],
+      "power_kW": 1
     }
   },
   "about_carriers": "How each kind of connection is drawn: style \"cable\" (thin, solid) or \"tube\" (thicker, see-through pipe). Cables arch over tubes where they cross.",
@@ -116,6 +464,14 @@
     "gas": {
       "color": "#7ad7ff",
       "style": "tube"
+    },
+    "hydrogen": {
+      "color": "#40e0ff",
+      "style": "tube"
+    },
+    "data": {
+      "color": "#c8a0ff",
+      "style": "cable"
     }
   },
   "tableWhite": "#f0f0f0",

@@ -1,7 +1,8 @@
 // Draws connections as cables and tubes lying on the ground, routed by router.js.
 //
-//   electricity → a bright yellow cable
-//   heat, gas   → a translucent tube with rings, in the carrier colour
+//   electricity          → a bright yellow cable
+//   data                 → a lavender cable (to the collector / controllers)
+//   heat, gas, hydrogen  → a translucent tube with rings, in the carrier colour
 //
 // Paths run at right angles along the table axes, around the assets. Where two cross,
 // one arches over the other (a cable over a tube; otherwise the later link over the
@@ -24,6 +25,8 @@ export const CARRIER_STYLES = {
   electricity: { color: '#ffe14d', style: 'cable' },
   heat: { color: '#ff7a2e', style: 'tube' },
   gas: { color: '#7ad7ff', style: 'tube' },
+  hydrogen: { color: '#40e0ff', style: 'tube' },
+  data: { color: '#c8a0ff', style: 'cable' },
 };
 
 const T = {                 // sizes in table metres

@@ -9,6 +9,7 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
+| `ar-12-illuminator-models` | **Done, not merged.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Checked in the screen preview; needs a headset test before merging into main. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
 | `scenario-import` | **In progress.** Illuminator scenarios in the diorama with a timeline panel. 1 commit ahead of its base, but main has moved on: merging it now conflicts in `diorama.js`, `main.js` and `style.css`. |
 | `connections` | Merged into main (PR #2). |
@@ -34,7 +35,7 @@ Roughly in priority order. Put your name next to an item when you pick it up.
 Every task has an id `AR-<number>`. Use it in branch names, commit messages and
 conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
-keeps its id when it moves to Done. **Next free id: AR-12.**
+keeps its id when it moves to Done. **Next free id: AR-13.**
 
 - [ ] **AR-1** Bring main into `scenario-import` (it conflicts since the connections merge),
       headset-test it and merge it into main.
@@ -115,6 +116,27 @@ back and play on the table.
 
 ## Done
 
+- 2026-11-24: **AR-12** Models for every Illuminator component type, in manual mode.
+  - 34 GLBs in `assets/models/illuminator/`, named after the Illuminator types (e.g.
+    `PV-ground`, `Load-Industrial`, `H2Storage-sphere`): 21 types, several with variants.
+    One look: white equipment on grey plinths, a band and badge in the colour of what the
+    asset makes or stores (bolt = electricity, hexagon = hydrogen cyan `#40e0ff`, flame =
+    heat, leaf = biomass), buildings like `house-pv`. Real metres, front = +Z.
+  - Every connection point (`port_*`) is at **1.0 m**, so links between assets line up.
+    Pipeline tiles on a 6 m grid: `Pipeline` (12 m), `Pipeline-short` (6 m),
+    `Pipeline-turn-left` / `-right` (90° bends); their ends sit on cell-edge midpoints, and
+    a test route of 10 pieces joined with zero gaps. A bend's origin is its cell centre.
+  - The builder source is **not in the repo** (the GLBs were the deliverable); a missing
+    or changed model needs a new builder, as CLAUDE.md says.
+  - Manual mode: `components.json` has the 34 assets with `group` (palette page) and
+    `illuminator` (type, for the YAML export), new carriers `hydrogen` (cyan tube) and
+    `data` (lavender cable, to the collector and controller). The palette shows one page at
+    a time (Electricity, Loads, Hydrogen, Pipes, Other), switched with a row of tabs in
+    front of it (`paletteGroups` in `manual.js`, tested; `palette.js`). Placed pipeline
+    pieces are not snapped to each other yet.
+  - Tests: `tests/components.test.mjs` checks models on disk, groups, carriers, Illuminator
+    coverage and the main links (60 tests pass). Checked with `?preview=1&build=manual`
+    (all 42 models load, tabs, cyan hydrogen tube); not yet on the headset. Version `models v1`.
 - 2026-11-24: **AR-11** The office asset (`office-pv`) is now the TU Delft EWI tower, in
   colour: blue glass in a fine light grid, light-blue crown, red end wall and red crown,
   "TU Delft" letters, a low glass wing, rooftop PV. Built by `buildEwiTower()` in
@@ -140,6 +162,9 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: AR-12: models for every Illuminator component and palette pages in
+  manual mode. Unit tests pass (60). Headset check still to do: thin parts (pipes, blades)
+  at table scale, and reaching the tab row with the controller.
 - **2026-11-24**: AR-11: replaced the office model with the EWI tower (branch
   `ar-11-ewi-office`). Unit tests pass (53). Headset check still to do: the window grid
   is fine (2-4 mm per floor on the table), watch for shimmer on the ML2.

@@ -47,6 +47,23 @@ export function paletteSlots(count, length, width, head, { offset = 0.07, maxSpa
   return { slots, spacing, yaw, edge };
 }
 
+// Palette pages: the asset types grouped by their "group" field, in the order of
+// config.paletteGroups ([{ key, label, colour }]); within a page, config.assets order.
+// A type without a known group goes to the last page. Empty pages are left out.
+// Returns [{ key, label, colour, types }]. Without paletteGroups: one page with everything.
+export function paletteGroups(config) {
+  const defs = Array.isArray(config?.paletteGroups) && config.paletteGroups.length
+    ? config.paletteGroups
+    : [{ key: 'all', label: 'Assets' }];
+  const pages = defs.map((d) => ({ key: d.key, label: d.label ?? d.key, colour: d.colour ?? '#ffffff', types: [] }));
+  const byKey = new Map(pages.map((p) => [p.key, p]));
+  const last = pages[pages.length - 1];
+  for (const [type, def] of Object.entries(config?.assets ?? {})) {
+    (byKey.get(def?.group) ?? last).types.push(type);
+  }
+  return pages.filter((p) => p.types.length);
+}
+
 // What a short bumper press does, given the phase and the kind of the last undoable
 // step (EnergySystem.lastStepKind(): 'add' | 'link' | 'unlink' | null).
 //   place:   undo the last step (usually the last asset placed)
