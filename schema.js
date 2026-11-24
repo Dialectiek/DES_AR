@@ -154,7 +154,8 @@ export function modelRows({ def, model, status = null, params = null, nameOf = S
       const link = e?.link;
       if (link) {
         const there = arrow === '←' ? link.fromPort : link.toPort;
-        ports.push({ key: name, value: `${arrow} ${nameOf(link[other])}${there ? '.' + there : ''}`, state: 'on' });
+        const via = link.model ? ` (${link.model})` : '';
+        ports.push({ key: name, value: `${arrow} ${nameOf(link[other])}${there ? '.' + there : ''}${via}`, state: 'on' });
       } else {
         const unit = (title === 'Inputs' ? model.inputs : model.outputs)?.[name]?.type ?? '';
         ports.push({ key: name, value: entries ? 'open' : unit, state: entries ? 'open' : undefined });

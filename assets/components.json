@@ -411,7 +411,7 @@
       "power_kW": 1
     }
   },
-  "about_carriers": "How each kind of connection is drawn: style \"cable\" (thin, solid) or \"tube\" (thicker, see-through pipe). Cables arch over tubes where they cross.",
+  "about_carriers": "How each kind of connection is drawn: style \"cable\" (thin, solid) or \"tube\" (thicker, see-through pipe). Cables arch over tubes where they cross. A carrier with \"illuminator\" is a component of its own in the scenario: every hydrogen tube is an Illuminator Pipeline (with its own parameters) between its two assets.",
   "carriers": {
     "electricity": {
       "color": "#ffe14d",
@@ -427,7 +427,8 @@
     },
     "hydrogen": {
       "color": "#40e0ff",
-      "style": "tube"
+      "style": "tube",
+      "illuminator": "Pipeline"
     },
     "data": {
       "color": "#c8a0ff",

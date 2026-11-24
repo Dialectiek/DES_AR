@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'ports v2';
+const APP_VERSION = 'ports v3';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -1935,9 +1935,9 @@ function clickAsset(id) {
   syncScene();
   if (r.action === 'added') {
     const end = (id, port) => sys.labelOf(sys.node(id)) + (port ? '.' + port : '');
-    const parts = r.links.map((l) => `${l.carrier} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`);
+    const parts = r.links.map((l) => `${l.carrier}${l.model ? ' ' + l.model : ''} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`);
     say('Connected: ' + parts.join(', '));
-    info('Connected', r.links.map((l) => ({ carrier: l.carrier, from: end(l.from, l.fromPort), to: end(l.to, l.toPort) })));
+    info('Connected', r.links.map((l) => ({ carrier: l.carrier, model: l.model, from: end(l.from, l.fromPort), to: end(l.to, l.toPort), params: l.params })));
   } else if (r.action === 'removed') {
     say(`Disconnected ${sys.labelOf(first)} and ${sys.labelOf(node)}`);
   } else {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { indexSchemas, modelOf, portsOfModel, defaultParameters, pickPorts, portArrowLayout, formatValue } from '../schema.js';
+import { indexSchemas, modelOf, portsOfModel, defaultParameters, pickPorts, portArrowLayout, formatValue, modelRows } from '../schema.js';
 import { EnergySystem } from '../system.js';
 
 const schemas = JSON.parse(readFileSync(new URL('../assets/illuminator-schemas.json', import.meta.url)));
@@ -146,6 +146,28 @@ test('portStatus and openPorts follow the links', () => {
   assert.equal(st.inputs[0].link.from, pv.id);
   assert.equal(st.open, 0);
   assert.equal(s.portStatus(s.addNode('house-pv', 0.4, 0)), null);
+});
+
+test('a hydrogen link is an Illuminator Pipeline with its own parameters', () => {
+  const s = sys();
+  const el = s.addNode('Electrolyzer', 0, 0);
+  const st = s.addNode('H2Storage', 0.2, 0);
+  const st2 = s.addNode('H2Storage', 0.4, 0);
+  const r = s.connect(el.id, st.id);
+  assert.equal(r.action, 'added', r.reason);
+  const h2 = r.links.find((l) => l.carrier === 'hydrogen');
+  assert.equal(h2.model, 'Pipeline');
+  assert.deepEqual(h2.params, defaultParameters(index.get('Pipeline')));
+  const other = s.connect(el.id, st2.id).links?.find((l) => l.carrier === 'hydrogen');
+  if (other) assert.notEqual(other.params, h2.params); // each pipe has its own copy
+  // Other carriers stay plain links.
+  const pv = s.addNode('PV-ground', 0, 0.2);
+  const grid = s.addNode('GridConnection', 0.2, 0.2);
+  const e = s.connect(pv.id, grid.id).links[0];
+  assert.equal(e.model, undefined);
+  // The info panel says the link is a pipeline.
+  const rows = modelRows({ def: s.assetOf(st), model: s.modelOf(st), status: s.portStatus(st), nameOf: (id) => s.labelOf(s.node(id)) }).ports;
+  assert.ok(rows.some((row) => /\(Pipeline\)$/.test(row.value ?? '')), JSON.stringify(rows));
 });
 
 test('the Collector takes any number of links', () => {

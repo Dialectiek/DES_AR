@@ -43,6 +43,9 @@ assigned directly to the schema task. Skip it when the count gets there.)
       headset-test it and merge it into main.
 - [ ] **AR-2** Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
 - [ ] **AR-3** Export the `EnergySystem` (`system.js`) as Illuminator YAML. This is pure logic, so test it in Node.
+      Use the schema (AR-47): each node is a model with its `params`; each link connects
+      `fromPort` → `toPort`. A link with `model` (every hydrogen tube = `Pipeline`) is a
+      component of its own: `from.fromPort → Pipeline.flow_in`, `Pipeline.flow_out → to.toPort`.
 - [ ] **AR-4** Colour-card detection: fix the camera-to-view mapping. The ordered list is in
       DETECTION_NOTES.md: check the mapping in `?debug=1`, find cards with a homography,
       reject grey-only calibrations, report "no card here".
@@ -141,7 +144,10 @@ back and play on the table.
   - Finishing with open ports is allowed but the HUD and the log list them.
   - The four Pipeline assets (and their GLBs) are gone: a hydrogen connection is already
     drawn as a tube, so that is the pipe. The Pipes page keeps the valve and the joint.
-    Open for the YAML export (AR-3): turn a hydrogen tube into an Illuminator `Pipeline`?
+    Decided: every hydrogen tube is an Illuminator `Pipeline`. The hydrogen carrier in
+    `components.json` has `"illuminator": "Pipeline"`, so a hydrogen link gets `model` and
+    its own `params` (the Pipeline defaults: `L` 100 m, `A` 2 m², …). The info panel marks
+    it "(Pipeline)". APP_VERSION `ports v3`.
   - The house (`Load-Residential`) is smaller on the table: `size_m` 0.14 → 0.10.
   - APP_VERSION `ports v2`. 74 unit tests pass. Checked with `?preview=1&build=manual`.
 - 2026-11-24: **AR-12** Models for every Illuminator component type, in manual mode.
@@ -192,7 +198,8 @@ back and play on the table.
 
 - **2026-11-24**: AR-47: Illuminator schemas, port limits, floor arrows and the info
   panel (branch `ar-47-illuminator-schema`, on top of AR-12). Removed the Pipeline assets
-  (the hydrogen tube is the pipe) and made the house smaller. 74 unit tests pass.
+  (the hydrogen tube is the pipe) and made the house smaller. Decided: every hydrogen tube
+  is an Illuminator Pipeline with its own parameters. 75 unit tests pass.
   Headset check to do: the panel text size and the arrows on the ML2.
 - **2026-11-24**: AR-12: models for every Illuminator component and palette pages in
   manual mode. Unit tests pass (60). Headset check still to do: thin parts (pipes, blades)

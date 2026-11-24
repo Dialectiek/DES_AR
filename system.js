@@ -9,6 +9,11 @@
 // its source (fromPort) and which input of its target (toPort) it uses; those names become
 // the `connections` of the Illuminator scenario YAML. Each node also keeps its own copy of
 // the model's parameters (node.params), starting from the schema's defaults.
+//
+// A link whose carrier has an "illuminator" model in components.json (hydrogen →
+// Pipeline) is a component of its own in the scenario: it gets link.model and its own
+// link.params. In the YAML the link becomes from.fromPort → <model>.<first input> and
+// <model>.<first output> → to.toPort.
 
 import { indexSchemas, modelOf, portsOfModel, defaultParameters, pickPorts } from './schema.js';
 
@@ -35,7 +40,7 @@ export class EnergySystem {
     this.config = config;
     this.schemas = indexSchemas(schemas);
     this.nodes = [];   // { id, colour, type (asset key or null), x, z, params? }
-    this.links = [];   // { id, carrier, from, to, power, fromPort, toPort }
+    this.links = [];   // { id, carrier, from, to, power, fromPort, toPort, model?, params? }
     this.history = []; // undo stack
     this.nextId = 1;
   }
@@ -82,6 +87,12 @@ export class EnergySystem {
       for (const p of st.outputs) if (!p.link) out.push({ node, side: 'out', name: p.name });
     }
     return out;
+  }
+
+  // The Illuminator model a link of this carrier stands for (hydrogen → Pipeline), or null.
+  linkModel(carrier) {
+    const name = this.config.carriers?.[carrier]?.illuminator;
+    return name ? this.schemas.get(name) ?? null : null;
   }
 
   // A new node's own copy of its model's parameters (none without a model).
@@ -186,6 +197,11 @@ export class EnergySystem {
           id: this.nextId++, carrier, from: from.id, to: to.id, power: this.assetOf(from).power_kW ?? 1,
           fromPort: pick.fromPort, toPort: pick.toPort,
         };
+        const linkModel = this.linkModel(carrier);
+        if (linkModel) {
+          made.model = linkModel.name;
+          made.params = defaultParameters(linkModel);
+        }
         break;
       }
       if (made) added.push(made);
