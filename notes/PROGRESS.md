@@ -9,8 +9,8 @@ Last updated: 2026-11-24
 | Branch | Status |
 |---|---|
 | `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
-| `ar-47-illuminator-schema` | **Done, not merged.** AR-47: Illuminator model schemas (inputs, outputs, parameters) from the docs; ports limit the connections, floor arrows per port, info panel with ports and parameters. Built on `ar-12-illuminator-models`, so merge that first. Checked in the screen preview; needs a headset test. |
-| `ar-12-illuminator-models` | **Done, not merged.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Checked in the screen preview; needs a headset test before merging into main. |
+| `ar-47-illuminator-schema` | AR-47, pushed onto `ar-12-illuminator-models` (same commits). |
+| `ar-12-illuminator-models` | **Done, PR to main next.** AR-12: a model for every Illuminator component, in manual mode with palette pages. Also holds AR-47: Illuminator schemas, port limits, floor arrows, info panel with parameters, hydrogen tubes as Pipelines. Checked in the screen preview; needs a headset test. |
 | `ar-11-ewi-office` | **Done, not merged.** AR-11: the office is now the TU Delft EWI tower. Checked in the screen preview; needs a headset test before merging into main. |
 | `scenario-import` | **In progress.** Illuminator scenarios in the diorama with a timeline panel. 1 commit ahead of its base, but main has moved on: merging it now conflicts in `diorama.js`, `main.js` and `style.css`. |
 | `connections` | Merged into main (PR #2). |
