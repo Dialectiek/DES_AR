@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'qol v4';
+const APP_VERSION = 'qol v5';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -2395,6 +2395,7 @@ function resetManual() {
   if (manual.palette) {
     manual.palette.group.visible = false;
     manual.palette.hideGhost();
+    manual.palette.hideList();
   }
 }
 
@@ -2454,6 +2455,14 @@ function manualTrigger(src) {
     manualDone();
     return;
   }
+  if (tile?.kind === 'save') { saveSystem(); return; }
+  if (tile?.kind === 'load') { showSaves(); return; }
+  if (tile?.kind === 'list-item') { loadSave(saves.items[tile.index]); return; }
+  if (tile?.kind === 'list-cancel' || pal.listShown) { // anywhere else closes the list too
+    pal.hideList();
+    say('Load cancelled');
+    return;
+  }
   // 2. An asset: first or second end of a connection.
   if (build.hovered !== null) {
     clickAsset(build.hovered);
@@ -2482,6 +2491,122 @@ function manualTrigger(src) {
   syncScene();
   info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
   say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+}
+
+// ---- Save / load (palette buttons, or the toolbar on a screen) -------------------
+// Saves go to the dev server (saves/*.json, devserver.mjs), so the laptop and the headset
+// share them. Without it (GitHub Pages) they stay in this browser's localStorage.
+const SAVES_KEY = 'tablecube-saves-v1';
+const SAVES_LOCAL_MAX = 20;
+const SAVES_SHOWN = 8;  // newest first, as palette buttons
+const saves = { items: [], busy: false };
+
+function localSaves() {
+  try { return JSON.parse(localStorage.getItem(SAVES_KEY) || '[]'); } catch { return []; }
+}
+
+function saveLabel(item) {
+  const d = item.savedAt ? new Date(item.savedAt) : null;
+  const when = d && !Number.isNaN(+d)
+    ? d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : item.name;
+  return `${when} · ${item.assets}`;
+}
+
+async function saveSystem() {
+  const sys = build.system;
+  if (!sys?.nodes.length) {
+    say('Nothing to save yet', 'warn');
+    return;
+  }
+  if (saves.busy) return;
+  saves.busy = true;
+  const data = { ...sys.toJSON(), savedAt: new Date().toISOString(), table: { length: state.table?.length, width: state.table?.width } };
+  const what = `${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
+  try {
+    if (remote.enabled) {
+      const r = await fetch('/saves', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+      const { name } = await r.json();
+      info('System saved on the laptop', { name, assets: data.nodes.length, links: data.links.length });
+      say(`Saved (${what}) as ${name}`);
+    } else {
+      const list = localSaves();
+      list.unshift({ name: data.savedAt, data });
+      localStorage.setItem(SAVES_KEY, JSON.stringify(list.slice(0, SAVES_LOCAL_MAX)));
+      info('System saved in this browser', { assets: data.nodes.length, links: data.links.length });
+      say(`Saved in this browser (${what})`);
+    }
+  } catch (err) {
+    error('Saving failed', errText(err));
+    say('Saving failed, see the log', 'warn');
+  } finally {
+    saves.busy = false;
+  }
+}
+
+async function fetchSaves() {
+  if (remote.enabled) {
+    const r = await fetch('/saves', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`${r.status}`);
+    return (await r.json()).map((s) => ({ ...s, where: 'laptop' }));
+  }
+  return localSaves().map((s) => ({
+    name: s.name, savedAt: s.data?.savedAt, assets: s.data?.nodes?.length ?? 0,
+    connections: s.data?.links?.length ?? 0, where: 'browser', data: s.data,
+  }));
+}
+
+// Load: the newest saves become buttons on the palette.
+async function showSaves() {
+  if (saves.busy) return;
+  saves.busy = true;
+  try {
+    saves.items = (await fetchSaves()).slice(0, SAVES_SHOWN);
+  } catch (err) {
+    error('Could not list the saves', errText(err));
+    say('Could not list the saves, see the log', 'warn');
+    return;
+  } finally {
+    saves.busy = false;
+  }
+  if (!saves.items.length) {
+    say(remote.enabled ? 'No saves yet (saves/ on the laptop is empty)' : 'No saves in this browser yet', 'warn');
+    return;
+  }
+  build.selected = null;
+  if (manual.phase !== 'edit') setManualPhase('edit', '');
+  manual.palette?.showList(saves.items.map(saveLabel));
+  say(`Pick a save to load (${plural(saves.items.length, 'save')}, newest first): it replaces the table`);
+}
+
+async function loadSave(item) {
+  if (!item || saves.busy) return;
+  saves.busy = true;
+  try {
+    const data = item.data ?? await (await fetch('/saves/' + encodeURIComponent(item.name), { cache: 'no-store' })).json();
+    const sys = build.system;
+    // Clear first: the saved ids may match assets on the table now.
+    sys.clear();
+    syncScene();
+    const r = sys.load(data);
+    syncScene();
+    manual.palette?.hideList();
+    if (manual.phase !== 'edit') setManualPhase('edit', '');
+    const t = state.table;
+    const off = sys.nodes.filter((n) => !insideTable(n.x, n.z, t.length, t.width, 0)).length;
+    info('System loaded', { name: item.name, where: item.where, ...r, savedTable: data.table, offTable: off });
+    let msg = `Loaded ${plural(r.nodes, 'asset')}, ${plural(r.links, 'connection')}`;
+    if (r.skipped.length) msg += ` (${r.skipped.length} left out, see the log)`;
+    if (off) msg += ` · ${off} off this table: move them on`;
+    say(msg, r.skipped.length || off ? 'warn' : 'info');
+    if (r.skipped.length) warn('Left out while loading', r.skipped);
+  } catch (err) {
+    error('Loading failed', errText(err));
+    say('Loading failed, see the log', 'warn');
+  } finally {
+    saves.busy = false;
+  }
 }
 
 // "Done" (palette button, or the toolbar on a screen): hides the palette and lists the
@@ -2585,6 +2710,10 @@ function manualStep(time) {
   if (build.drag) line1 = dragLine();
   else if (tile?.kind === 'asset') line1 = `${tile.label}: ${press()} to pick it`;
   else if (tile?.kind === 'group') line1 = `${tile.label}: ${press()} to show these assets`;
+  else if (tile?.kind === 'save') line1 = `Save: ${press()} to store this system (${remote.enabled ? 'on the laptop' : 'in this browser'})`;
+  else if (tile?.kind === 'load') line1 = `Load: ${press()} to pick a saved system`;
+  else if (tile?.kind === 'list-item') line1 = `${cap(press())} to load this save: it replaces what is on the table`;
+  else if (tile?.kind === 'list-cancel') line1 = 'Close the list, keep the table as it is';
   else if (tile?.kind === 'done') line1 = n ? `Done: ${press()} to check the open ports` : 'Place at least one asset first';
   else if (build.selected !== null) {
     line1 = linkLine();
@@ -3716,6 +3845,8 @@ async function startPreview() {
     const bar = makeDeskBar([
       { id: 'back', text: '↶ Undo', title: 'Backspace', run: () => manualBack() },
       { id: 'next', text: 'Done ✓', title: 'Enter', primary: true, run: () => (manual.phase === 'done' ? manualBack() : manualDone()) },
+      { id: 'save', text: '💾 Save', run: () => saveSystem() },
+      { id: 'load', text: '📂 Load', run: () => showSaves() },
       { id: 'restart', text: 'Start over', run: () => {
         if (!confirm('Remove all assets and connections?')) return;
         resetBuild();

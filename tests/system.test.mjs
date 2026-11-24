@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLink, EnergySystem, colourForType, quarterTurn, snapToQuarter } from '../system.js';
+import { resolveLink, EnergySystem, colourForType, quarterTurn, snapToQuarter, SAVE_FORMAT } from '../system.js';
 
 const assets = {
   turbine: { label: 'Turbine', produces: ['electricity'], consumes: [], power_kW: 5 },
@@ -231,4 +231,49 @@ test('planConnect says what connect would do, and changes nothing', () => {
   assert.equal(JSON.stringify([sys.links, sys.history, sys.nextId]), before);
   sys.connect(t.id, c.id);
   assert.equal(sys.planConnect(c.id, t.id).action, 'remove');
+});
+
+test('toJSON → load gives the same system, with an empty history and fresh ids', () => {
+  const sys = new EnergySystem(config);
+  const t = sys.addNode('turbine', 0.1, -0.2);
+  t.yaw = Math.PI / 2;
+  const c = sys.addNode('car', -0.3, 0.1, 'orange');
+  sys.connect(t.id, c.id);
+  const saved = JSON.parse(JSON.stringify(sys.toJSON()));
+  assert.equal(saved.format, SAVE_FORMAT);
+
+  const other = new EnergySystem(config);
+  other.addNode('house', 0, 0);
+  const r = other.load(saved);
+  assert.deepEqual(r, { nodes: 2, links: 1, skipped: [] });
+  assert.deepEqual(other.nodes, sys.nodes);
+  assert.deepEqual(other.links, sys.links);
+  assert.equal(other.lastStepKind(), null);
+  const n = other.addNode('house', 0.3, 0.3);
+  assert.ok(n.id > Math.max(...sys.nodes.map((x) => x.id), ...sys.links.map((l) => l.id)));
+  // the save is a copy: changing the loaded system leaves the save alone
+  other.nodes[0].x = 9;
+  assert.equal(saved.nodes[0].x, 0.1);
+});
+
+test('load leaves out unknown assets and their links, and refuses non-saves', () => {
+  const sys = new EnergySystem(config);
+  const data = {
+    format: SAVE_FORMAT, version: 1,
+    nodes: [
+      { id: 1, type: 'turbine', colour: null, x: 0, z: 0 },
+      { id: 2, type: 'spaceship', colour: null, x: 0.2, z: 0 },
+      { id: 3, type: 'car', colour: null, x: 0.4, z: 0 },
+    ],
+    links: [
+      { id: 4, carrier: 'electricity', from: 1, to: 2 },
+      { id: 5, carrier: 'electricity', from: 1, to: 3 },
+    ],
+  };
+  const r = sys.load(data);
+  assert.equal(r.nodes, 2);
+  assert.equal(r.links, 1);
+  assert.deepEqual(r.skipped, ['unknown asset "spaceship"', 'a connection to a missing asset']);
+  assert.throws(() => sys.load({ nodes: [] }), /not a saved energy system/);
+  assert.throws(() => sys.load(null), /not a saved energy system/);
 });

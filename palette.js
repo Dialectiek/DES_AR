@@ -7,6 +7,8 @@
 //     paletteGroups); only the current page's tiles are shown,
 //   - a row of group tabs just in front of the tiles (closer to the user), one per page,
 //   - a "Done" button at the right end. The whole palette hides in the 'done' phase.
+//   - "Save" and "Load" buttons at the end of the tab row. Load shows a list of saves in
+//     place of the tiles (showList), with a "Cancel" button at the end.
 // Every tile has userData { kind, type, pickCentre, pickRadius }, the same fields as the
 // asset objects in assets.js, so pickAsset() picks tiles too. Tabs have kind 'group'.
 // Note: Magic Leap 2 is an additive display: dark = transparent, so everything is bright.
@@ -159,6 +161,20 @@ export function createPalette(config, templates) {
 
   done.draw('Done ✓');
 
+  // Save / Load, at the end of the tab row.
+  const tools = [['save', '💾 Save'], ['load', '📂 Load']].map(([kind, text]) => {
+    const button = makeButton('#ffd27a', TAB_W, TAB_H, TAB_H / 2 + 0.006);
+    button.draw(text);
+    const t = new THREE.Group();
+    t.add(button.sprite);
+    t.userData = { kind, pickCentre: new THREE.Vector3(0, button.sprite.position.y, 0), pickRadius: 0.035 };
+    group.add(t);
+    return t;
+  });
+
+  // The list of saves (showList): one button per item, then Cancel.
+  let list = null; // [button group] while shown
+
   let phase = 'edit';
   let page = 0;
   let selected = pages[0]?.types[0] ?? null;
@@ -206,17 +222,66 @@ export function createPalette(config, templates) {
     });
     const last = slots[slots.length - 1];
     doneTile.position.set(last.x, 0, last.z);
-    if (tabs.length) {
-      const row = paletteSlots(tabs.length, length, width, head, { offset: TAB_OFFSET, maxSpacing: TAB_W + 0.02, lastGap: 0 });
-      tabs.forEach((tab, i) => tab.position.set(row.slots[i].x, 0, row.slots[i].z));
-    }
+    const rowItems = [...tabs, ...tools];
+    const row = paletteSlots(rowItems.length, length, width, head, { offset: TAB_OFFSET, maxSpacing: TAB_W + 0.02, lastGap: 0.03 });
+    rowItems.forEach((t, i) => t.position.set(row.slots[i].x, 0, row.slots[i].z));
+    if (list) layoutList();
     showPhase();
   }
 
   function showPhase() {
     group.visible = phase !== 'done';
-    for (const tile of tiles) tile.visible = tile.userData.page === page;
-    for (const tab of tabs) tab.userData.draw(tab.userData.label, tab.userData.page === page ? 'on' : 'off');
+    for (const tile of tiles) tile.visible = !list && tile.userData.page === page;
+    for (const tab of tabs) {
+      tab.visible = !list;
+      tab.userData.draw(tab.userData.label, tab.userData.page === page ? 'on' : 'off');
+    }
+    for (const t of tools) t.visible = !list;
+    doneTile.visible = !list;
+  }
+
+  function disposeList() {
+    for (const b of list ?? []) {
+      group.remove(b);
+      b.children[0].material.map?.dispose();
+      b.children[0].material.dispose();
+    }
+    list = null;
+  }
+
+  function layoutList() {
+    if (!lastLayout) return;
+    const { slots, spacing } = paletteSlots(list.length, ...lastLayout);
+    const w = Math.min(BUTTON_W, Math.max(0.05, spacing * 0.92));
+    list.forEach((b, i) => {
+      b.position.set(slots[i].x, 0, slots[i].z);
+      const sprite = b.children[0];
+      sprite.userData.size = [w, BUTTON_H];
+      sprite.scale.set(w, BUTTON_H, 1);
+    });
+  }
+
+  // Shows the given items (strings) in place of the tiles; the last button is "Cancel".
+  // Picking one gives a tile with kind 'list-item' and its index, or kind 'list-cancel'.
+  function showList(labels) {
+    disposeList();
+    list = [...labels.map((label, index) => ({ label, kind: 'list-item', index })), { label: '✕ Cancel', kind: 'list-cancel' }]
+      .map(({ label, kind, index }) => {
+        const button = makeButton(kind === 'list-cancel' ? '#ff9a7a' : '#ffd27a');
+        button.draw(label);
+        const b = new THREE.Group();
+        b.add(button.sprite);
+        b.userData = { kind, index, label, pickCentre: new THREE.Vector3(0, BUTTON_Y, 0), pickRadius: 0.045 };
+        group.add(b);
+        return b;
+      });
+    layoutList();
+    showPhase();
+  }
+
+  function hideList() {
+    disposeList();
+    showPhase();
   }
 
   function setPhase(p) {
@@ -239,7 +304,9 @@ export function createPalette(config, templates) {
 
   // Tiles the controller can point at right now.
   function pickables() {
-    return phase === 'done' ? [] : [...pageTiles(), doneTile, ...tabs];
+    if (phase === 'done') return [];
+    if (list) return list;
+    return [...pageTiles(), doneTile, ...tabs, ...tools];
   }
 
   // Every frame: hover / selection highlights. hoverTile: a tile group or null.
@@ -253,7 +320,7 @@ export function createPalette(config, templates) {
       baseMat.opacity = sel ? 0.45 + 0.35 * pulse : hov ? 0.6 : 0.2;
       base.scale.setScalar(hov ? 1.15 : sel ? 1.08 : 1);
     }
-    for (const t of [doneTile, ...tabs]) {
+    for (const t of [doneTile, ...tabs, ...tools, ...(list ?? [])]) {
       const sprite = t.children[0];
       const [w, h] = sprite.userData.size;
       sprite.scale.set(w, h, 1).multiplyScalar(t === hovered ? 1.15 : 1);
@@ -332,6 +399,9 @@ export function createPalette(config, templates) {
     doneTile,
     layout,
     setPhase,
+    showList,
+    hideList,
+    get listShown() { return !!list; },
     setPage,
     pickables,
     update,

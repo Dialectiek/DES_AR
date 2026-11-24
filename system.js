@@ -307,7 +307,64 @@ export class EnergySystem {
     this.links = [];
     this.history = [];
   }
+
+  // The system as plain JSON, to save it (positions in table-local metres). Undo history
+  // is not saved.
+  toJSON() {
+    const copy = (o) => JSON.parse(JSON.stringify(o));
+    return {
+      format: SAVE_FORMAT,
+      version: 1,
+      nodes: this.nodes.map((n) => copy(n)),
+      links: this.links.map((l) => copy(l)),
+    };
+  }
+
+  // Replaces the system with a saved one (toJSON). Nodes whose asset type is unknown now,
+  // and links whose ends are missing, are left out. The undo history starts empty.
+  // Returns { nodes, links, skipped: [reason] }; throws on something that is not a save.
+  load(data) {
+    if (data?.format !== SAVE_FORMAT || !Array.isArray(data.nodes) || !Array.isArray(data.links)) {
+      throw new Error('not a saved energy system');
+    }
+    const skipped = [];
+    const nodes = [];
+    for (const n of data.nodes) {
+      if (!Number.isFinite(n?.id) || !Number.isFinite(n.x) || !Number.isFinite(n.z)) {
+        skipped.push('an asset without id or position');
+        continue;
+      }
+      if (n.type !== null && !this.config.assets?.[n.type]) {
+        skipped.push(`unknown asset "${n.type}"`);
+        continue;
+      }
+      const node = { id: n.id, colour: n.colour ?? null, type: n.type, x: n.x, z: n.z };
+      if (Number.isFinite(n.yaw)) node.yaw = n.yaw;
+      if (n.params && typeof n.params === 'object') node.params = n.params;
+      else if (n.type) {
+        const params = this.paramsFor(n.type);
+        if (params) node.params = params;
+      }
+      nodes.push(node);
+    }
+    const ids = new Set(nodes.map((n) => n.id));
+    const links = [];
+    for (const l of data.links) {
+      if (!Number.isFinite(l?.id) || !ids.has(l.from) || !ids.has(l.to) || typeof l.carrier !== 'string') {
+        skipped.push('a connection to a missing asset');
+        continue;
+      }
+      links.push(JSON.parse(JSON.stringify(l)));
+    }
+    this.nodes = nodes;
+    this.links = links;
+    this.history = [];
+    this.nextId = Math.max(0, ...nodes.map((n) => n.id), ...links.map((l) => l.id)) + 1;
+    return { nodes: nodes.length, links: links.length, skipped };
+  }
 }
+
+export const SAVE_FORMAT = 'tablecube-energy-system';
 
 // The card colour that components.json maps to this asset type, or null. Manual assets
 // use it for their ring and label, so an asset looks the same in both modes.
