@@ -175,6 +175,8 @@ body.preview .panel { display: none; }
 /* Build picker: the choice that matters most, so it stands out a little. */
 #build-picker { border-color: var(--accent); }
 #build-picker:disabled label { color: var(--muted); cursor: default; }
+#build-picker label.sub { padding-left: 26px; }
+#build-picker select { margin-left: 6px; max-width: 100%; }
 .note { margin: 6px 0 0; font-size: 0.9rem; color: var(--muted); }
 .note.warning { color: var(--no); font-weight: 600; }
 
