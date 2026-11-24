@@ -82,6 +82,11 @@
         <li><b>Bumper</b> — cancel a half-made connection, otherwise undo the last step (a move too)</li>
         <li><b>Trigger on "Done"</b> — hides the palette and lists the open ports. Connecting still works;
           <b>bumper</b> brings the palette back.</li>
+        <li><b>While connecting</b>, the band from the first asset shows what the trigger would do: the cable's colour =
+          connect, white = disconnect, red = not possible (the reason is in the status line).</li>
+        <li><b>"Save" / "Load"</b> (next to the tabs) — store the system, or pick a saved one (newest first; it replaces
+          the table). Saves go to <code>saves/</code> on the laptop when served by <code>devserver.mjs</code>, otherwise
+          to this browser.</li>
         <li><b>Hold the bumper (1.5 s)</b> — calibrate the table again (clears everything)</li>
       </ul>
       <p><b>Colour cards (after corner setup)</b></p>
@@ -123,6 +128,8 @@
         <li><code>?corner=0.1</code> — corner radius of the outline in metres (detect: default estimated, corners: default 0)</li>
         <li><code>?white=180</code> — fixed brightness threshold for "white" (default: automatic)</li>
         <li><code>?aa=0</code> — turn antialiasing off</li>
+        <li><code>?sound=0</code> — no feedback sounds (on a screen: the toolbar's Sound button)</li>
+        <li><code>?assetScale=0.65</code> — size of the assets on the table (default from <code>components.json</code>)</li>
         <li><code>?xrcompat=0</code> — let three.js make its own (non-XR-compatible) GL context, for comparison</li>
       </ul>
     </details>

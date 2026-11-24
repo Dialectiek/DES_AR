@@ -17,7 +17,8 @@ Status, todo and roadmap: **[notes/PROGRESS.md](notes/PROGRESS.md)**. Colour-car
 ## Run
 
 - `npm start` (= `node devserver.mjs`, port 8000): serves the folder and receives the
-  headset log at `POST /log`, appended to `xr-log.txt`.
+  headset log at `POST /log`, appended to `xr-log.txt`. Saved energy systems (Save / Load
+  in manual mode) go to `saves/` (not in git).
 - Headset: `adb reverse tcp:8000 tcp:8000` and open `http://localhost:8000`, or use a
   devtunnel. Also deployed on GitHub Pages (it caches files for about 10 minutes).
 - Laptop without headset: `?preview=1` (add `&build=manual` to drive manual mode with the mouse).
@@ -33,7 +34,8 @@ Status, todo and roadmap: **[notes/PROGRESS.md](notes/PROGRESS.md)**. Colour-car
    - `cards`: calibrate colour squares, then tap a coloured card to add its asset. Not
      reliable yet, see notes/DETECTION_NOTES.md.
    - `demo`: the fixed diorama from `assets/scenes/demo.json`.
-3. Controls: trigger = act, bumper = undo / step back, hold the bumper = recalibrate.
+3. Controls: trigger = act (hold it on an asset = move it, bumper meanwhile = turn it),
+   bumper = undo / cancel, hold the bumper = recalibrate.
 
 The full list of URL options is in `index.html` ("URL options") and in the comments in `main.js`.
 
@@ -42,12 +44,13 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 | File | Role |
 |---|---|
 | `main.js` | Everything WebXR: session, table calibration, input, modes, HUD, logging, preview. Large; grep for the `// ----` section headers. |
-| `system.js` | Energy-system model (nodes, links with Illuminator ports, undo). Pure, tested. |
+| `system.js` | Energy-system model (nodes, links with Illuminator ports, moves and turns, undo, save / load JSON). Pure, tested. |
 | `schema.js` / `ports-view.js` | Illuminator model schemas: ports, port choice, arrow layout, panel rows. Pure, tested / floor arrows per input and output, and the asset info panel. |
 | `manual.js` / `palette.js` | Manual mode: pure layout logic (tested) / palette and ghost 3D. |
 | `cards.js` | Colour-card detection. Pure, tested. |
 | `assets.js` / `links.js` | 3D objects for nodes / adapter from the energy system's links to `cables.js` (manual and cards modes). |
 | `router.js` / `cables.js` | Connection routing: right angles on a grid, around the assets, bridges where links cross. Pure, tested / draws the routed cables and tubes with flow dots, in every mode. |
+| `sound.js` | Feedback sounds made with WebAudio (no files); muted with `?sound=0`. |
 | `diorama.js` / `asset-labels.js` | Diorama scene loader and flows / floating asset info panels. |
 | `tools/illuminator-schemas.cjs` | Reads the Illuminator docs and writes `assets/illuminator-schemas.json` (refresh command in its header). |
 | `tools/model-builders.js` | Procedural source of the GLBs in `assets/models/`; export with `tools/export-models.html` (`node devserver.mjs 8001 --allow-save`). Source geometry a builder reads (the EWI tower STL) is in `tools/sources/`. |

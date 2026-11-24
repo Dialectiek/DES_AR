@@ -36,6 +36,7 @@ import {
   dilate, erode, planeProjector, buildColourTable, detectCards, mergeScans, filterNew, rgbToHex, describeColour,
   worldToPixel, samplePatch, nearestColour, balanceColour, alignProjection, sampleSlots, pixelShiftToNdc,
 } from './cards.js';
+import { createSounds } from './sound.js';
 import { quarterTurn, snapToQuarter, EnergySystem, colourForType } from './system.js';
 import {
   loadComponents, preloadModels, makeAssetObject, disposeAssetObject, faceTowards, pickAsset, displayColour,
@@ -104,6 +105,13 @@ const logLines = [];
 // When the page is served by devserver.mjs, every log line is also sent to the laptop.
 // That is the only log that survives the whole browser crashing.
 const remote = { enabled: false, probing: true, queue: [], seq: 0 };
+
+// Feedback sounds (sound.js). Off with ?sound=0 or the screen toolbar's sound button.
+const SOUND_KEY = 'tablecube-sound-v1';
+const sounds = createSounds({
+  enabled: params.get('sound') !== '0' && (() => { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; } })(),
+});
+const sfx = (name) => sounds.play(name);
 let previousLog = [];
 const logListEl = document.getElementById('log-list');
 const logState = { dirty: true };
@@ -179,7 +187,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'qol v5';
+const APP_VERSION = 'qol v6';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -1827,6 +1835,7 @@ function undoBuild() {
   const what = build.system?.undo();
   syncScene();
   say(what ? 'Undo: ' + what : 'Nothing to undo');
+  sfx(what ? 'undo' : 'refused');
 }
 
 function startScan() {
@@ -1935,6 +1944,7 @@ function finishScan() {
   syncScene();
   if (added.length) {
     say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')}`);
+    sfx('place');
   } else if (cards.length) {
     say(`No new cards (${cards.length} already placed)`);
   } else {
@@ -1948,6 +1958,7 @@ function clickAsset(id) {
   if (build.selected === null) {
     build.selected = id;
     say(`${sys.labelOf(node)} selected: now click a second asset`);
+    sfx('pick');
     return;
   }
   if (build.selected === id) {
@@ -1963,11 +1974,14 @@ function clickAsset(id) {
     const end = (id, port) => sys.labelOf(sys.node(id)) + (port ? '.' + port : '');
     const parts = r.links.map((l) => `${l.carrier}${l.model ? ' ' + l.model : ''} ${end(l.from, l.fromPort)} → ${end(l.to, l.toPort)}`);
     say('Connected: ' + parts.join(', '));
+    sfx('connect');
     info('Connected', r.links.map((l) => ({ carrier: l.carrier, model: l.model, from: end(l.from, l.fromPort), to: end(l.to, l.toPort), params: l.params })));
   } else if (r.action === 'removed') {
     say(`Disconnected ${sys.labelOf(first)} and ${sys.labelOf(node)}`);
+    sfx('disconnect');
   } else {
     say('Not connected: ' + r.reason, 'warn');
+    sfx('refused');
   }
 }
 
@@ -2018,6 +2032,7 @@ function startDrag(id) {
   manual.palette?.hideGhost();
   info('Drag started', { asset: sys.labelOf(node), id });
   say(`Moving the ${sys.labelOf(node)}: let go to drop it, ${preview.active ? 'R' : 'bumper'} = turn`);
+  sfx('lift');
 }
 
 // Bumper (R or Backspace on a screen) while holding an asset: a quarter turn. Its floor
@@ -2029,6 +2044,7 @@ function turnHeld(dir = 1) {
   sys.dragNode(node.id, node.x, node.z, quarterTurn(node.yaw, dir));
   obj.rotation.y = node.yaw;
   drag.turns = (drag.turns ?? 0) + 1;
+  sfx('turn');
   info('Asset turned', { asset: sys.labelOf(node), yaw_deg: Math.round((node.yaw * 180) / Math.PI) });
 }
 
@@ -2094,9 +2110,13 @@ function pressEnd() {
   if (check.ok && sys.moveNode(drag.id, node.x, node.z, drag.start, node.yaw)) {
     info('Asset moved', { asset: sys.labelOf(node), x: r3(node.x), z: r3(node.z), yaw_deg: Math.round((node.yaw * 180) / Math.PI) });
     say(`${moved ? 'Moved' : 'Turned'} the ${sys.labelOf(node)}`);
+    sfx('place');
   } else {
     sys.dragNode(drag.id, drag.start.x, drag.start.z, drag.start.yaw);
-    if (!check.ok) say(`Can't go there (${check.reason}): the ${sys.labelOf(node)} went back`, 'warn');
+    if (!check.ok) {
+      say(`Can't go there (${check.reason}): the ${sys.labelOf(node)} went back`, 'warn');
+      sfx('refused');
+    }
   }
   syncScene();
   return true;
@@ -2162,6 +2182,7 @@ function tapStep(frame, pose) {
   const added = sys.addCards([{ colour: match.name, x: local.x, z: local.z }]);
   syncScene();
   say(`Added ${added.map((n) => sys.labelOf(n)).join(', ')} (${match.name})`);
+  sfx('place');
 }
 
 const _a = new THREE.Vector3();
@@ -2442,6 +2463,7 @@ function manualTrigger(src) {
     pal.selected = tile.type;
     build.selected = null;
     say(`Placing: ${tile.label}. ${cap(press())} on the table to put it there`);
+    sfx('pick');
     return;
   }
   if (tile?.kind === 'group') {
@@ -2449,6 +2471,7 @@ function manualTrigger(src) {
     const label = components.config.assets[pal.selected]?.label ?? pal.selected;
     info('Palette page', { page: page.key, selected: pal.selected });
     say(`${page.label}: ${plural(page.types.length, 'asset')}. Placing: ${label}`);
+    sfx('pick');
     return;
   }
   if (tile?.kind === 'done') {
@@ -2485,12 +2508,14 @@ function manualTrigger(src) {
   const check = placeCheck(local);
   if (!check.ok) {
     say(check.reason, 'warn');
+    sfx('refused');
     return;
   }
   const node = sys.addNode(pal.selected, local.x, local.z, colourForType(components.config, pal.selected));
   syncScene();
   info('Asset placed', { type: node.type, x: r3(local.x), z: r3(local.z) });
   say(`Added ${sys.labelOf(node)} (${plural(sys.nodes.length, 'asset')})`);
+  sfx('place');
 }
 
 // ---- Save / load (palette buttons, or the toolbar on a screen) -------------------
@@ -2530,12 +2555,14 @@ async function saveSystem() {
       const { name } = await r.json();
       info('System saved on the laptop', { name, assets: data.nodes.length, links: data.links.length });
       say(`Saved (${what}) as ${name}`);
+      sfx('save');
     } else {
       const list = localSaves();
       list.unshift({ name: data.savedAt, data });
       localStorage.setItem(SAVES_KEY, JSON.stringify(list.slice(0, SAVES_LOCAL_MAX)));
       info('System saved in this browser', { assets: data.nodes.length, links: data.links.length });
       say(`Saved in this browser (${what})`);
+      sfx('save');
     }
   } catch (err) {
     error('Saving failed', errText(err));
@@ -2600,6 +2627,7 @@ async function loadSave(item) {
     if (r.skipped.length) msg += ` (${r.skipped.length} left out, see the log)`;
     if (off) msg += ` · ${off} off this table: move them on`;
     say(msg, r.skipped.length || off ? 'warn' : 'info');
+    sfx('save');
     if (r.skipped.length) warn('Left out while loading', r.skipped);
   } catch (err) {
     error('Loading failed', errText(err));
@@ -2623,10 +2651,12 @@ function manualDone() {
   const done = `${plural(sys.nodes.length, 'asset')}, ${plural(sys.links.length, 'connection')}`;
   if (!open.length) {
     setManualPhase('done', done + '. Every input and output is connected');
+    sfx('done');
     return;
   }
   const names = open.slice(0, 3).map((p) => `${sys.labelOf(p.node)}.${p.name}`).join(', ');
   setManualPhase('done', `${done}. ${plural(open.length, 'port')} still open: ${names}${open.length > 3 ? '…' : ''}`);
+  sfx('done');
   warn('Done with open Illuminator ports', open.map((p) => ({ asset: sys.labelOf(p.node), id: p.node.id, side: p.side, port: p.name })));
 }
 
@@ -2643,6 +2673,7 @@ function manualBack() {
     const what = sys.undo();
     syncScene();
     say(what ? 'Undo: ' + what : 'Nothing to undo');
+    sfx(what ? 'undo' : 'refused');
   } else say('Nothing to undo');
 }
 
@@ -3668,8 +3699,8 @@ function onSessionEnd() {
   setPageStatus('Session ended. See the log for what happened.');
 }
 
-startBtn.addEventListener('click', () => startAR(chosenFeatures()));
-safeBtn.addEventListener('click', () => startAR([]));
+startBtn.addEventListener('click', () => { sounds.unlock(); startAR(chosenFeatures()); });
+safeBtn.addEventListener('click', () => { sounds.unlock(); startAR([]); });
 rawBtn.addEventListener('click', rawXRTest);
 // Laptop: the same choice ("What goes on the table") on a virtual table, see startPreview.
 document.getElementById('start-preview')?.addEventListener('click', () => {
@@ -3846,6 +3877,13 @@ async function startPreview() {
       { id: 'back', text: '↶ Undo', title: 'Backspace', run: () => manualBack() },
       { id: 'next', text: 'Done ✓', title: 'Enter', primary: true, run: () => (manual.phase === 'done' ? manualBack() : manualDone()) },
       { id: 'save', text: '💾 Save', run: () => saveSystem() },
+      { id: 'sound', text: sounds.enabled ? '🔊 Sound' : '🔇 Sound', run: () => {
+        sounds.unlock();
+        sounds.enabled = !sounds.enabled;
+        try { localStorage.setItem(SOUND_KEY, sounds.enabled ? 'on' : 'off'); } catch { /* ignore */ }
+        bar.show('sound', true, sounds.enabled ? '🔊 Sound' : '🔇 Sound');
+        if (sounds.enabled) sfx('pick');
+      } },
       { id: 'load', text: '📂 Load', run: () => showSaves() },
       { id: 'restart', text: 'Start over', run: () => {
         if (!confirm('Remove all assets and connections?')) return;
@@ -3863,6 +3901,7 @@ async function startPreview() {
     canvas.addEventListener('pointerleave', () => { preview.ndc = null; });
     // Press on an asset: hold (or move the mouse) to drag it; the view doesn't turn meanwhile.
     canvas.addEventListener('pointerdown', (e) => {
+      sounds.unlock(); // audio may only start after a user gesture
       if (e.button !== 0) return;
       pointAt(e);
       preview.aim = previewAim();
