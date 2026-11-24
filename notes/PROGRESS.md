@@ -8,8 +8,10 @@ Last updated: 2026-11-24
 
 | Branch | Status |
 |---|---|
-| `main` | Working version: corner calibration, manual / cards / demo modes, asset labels, preview. Version label `manual v2`. |
-| `scenario-import` | **In progress.** Illuminator scenarios in the diorama with a timeline panel. 1 commit ahead of main. |
+| `main` | Working version: corner calibration, manual / cards / demo modes, connections as routed cables and tubes, asset labels, full screen version (`?preview=1`). Version label `screen v1`. |
+| `scenario-import` | **In progress.** Illuminator scenarios in the diorama with a timeline panel. 1 commit ahead of its base, but main has moved on: merging it now conflicts in `diorama.js`, `main.js` and `style.css`. |
+| `connections` | Merged into main (PR #2). |
+| `claude/to-do-list-c6d6f5` | Merged into main (PR #1): AR task ids. |
 | `detection` | Merged into main. Card detection is paused. |
 | `settingup` | Merged into main. |
 
@@ -21,7 +23,8 @@ Last updated: 2026-11-24
   - New models: battery, grid pylon, house, transformer.
   - Contains the power-balance tutorials a and b.
   - Unit tests pass (54).
-  - Next: test on the headset, then merge into main (AR-1).
+  - Next: bring in main and resolve the conflicts from the connections merge, so scenario
+    flows are drawn as the new cables; then test on the headset and merge into main (AR-1).
 
 ## Todo
 
@@ -32,7 +35,8 @@ conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem 
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
 keeps its id when it moves to Done. **Next free id: AR-11.**
 
-- [ ] **AR-1** Headset-test `scenario-import` and merge it into main.
+- [ ] **AR-1** Bring main into `scenario-import` (it conflicts since the connections merge),
+      headset-test it and merge it into main.
 - [ ] **AR-2** Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
 - [ ] **AR-3** Export the `EnergySystem` (`system.js`) as Illuminator YAML. This is pure logic, so test it in Node.
 - [ ] **AR-4** Colour-card detection: fix the camera-to-view mapping. The ordered list is in
@@ -41,16 +45,18 @@ keeps its id when it moves to Done. **Next free id: AR-11.**
 - [ ] **AR-5** Assign meta-assets (generators, storage, ...) to the other card colours (`assets/components.json`).
 - [ ] **AR-6** Merge the two asset configs: `components.json` (manual/cards) and `library.json`
       (diorama) describe the same assets twice.
-- [ ] **AR-7** Link power in manual/cards mode is a hard-coded placeholder (`links.js`). Replace it
-      with Illuminator results once the export and run steps work.
+- [ ] **AR-7** Link power in manual/cards mode is a placeholder: each link takes its source
+      asset's `power_kW` (`system.js`), which sets the flow-dot speed in `cables.js`. Replace
+      it with Illuminator results once the export and run steps work.
 - [ ] **AR-8** Stop tracking `xr-log.txt` in git (about 0.5 MB, changes on every headset run): add a `.gitignore`.
-- [ ] **AR-9** Split `main.js` (about 3.7k lines) into smaller modules: calibration, input, modes, HUD/log.
+- [ ] **AR-9** Split `main.js` (about 3.5k lines) into smaller modules: calibration, input, modes, HUD/log.
 - [ ] **AR-10** In-game menu in AR with three actions:
       - *Exit*: end the AR session and go back to the start page. Today only the headset's
-        own menu button exits.
+        own menu button exits (on a screen, the toolbar has "Start page").
       - *Restart*: clear the table and start the chosen mode again without reloading the
         page, keeping the table calibration (hold bumper = recalibrate stays as it is).
-        `resetBuild()` in `main.js` already clears the table; today only recalibration calls it.
+        The screen toolbar's "Start over" already does this (`resetBuild()`, then
+        `enterManual()` in `main.js`); the headset has no way to reach it.
       - *Save*: store the current system (nodes, links, positions) so it can be loaded
         again. `EnergySystem` (`system.js`) has no serialisation yet: add it as pure,
         tested logic. Start with JSON (localStorage or a download); the Illuminator YAML
@@ -108,6 +114,12 @@ back and play on the table.
 
 ## Done
 
+- 2026-11-24: Connections drawn the same way in every mode: electricity as a yellow cable,
+  heat and gas as a tube, on the ground at right angles around the assets, arching over
+  each other where they cross (`router.js` with tests, `cables.js`). Merged from `connections` (PR #2).
+- 2026-11-24: Full screen version (`?preview=1`): orbit camera, toolbar (undo, add assets,
+  done, start over, views), `?size=` for the table size. Version label `screen v1`. Merged with PR #2.
+- 2026-11-24: Todo items numbered AR-1 to AR-9 (PR #1).
 - 2026-11-10: Preview follows the start-page menu, and the page shows the running version (`manual v2`).
 - 2026-11-10: Start-page menu "What goes on the table": manual / cards / demo.
 - 2026-11-10: Manual mode: palette along the nearest table edge, ghost placement, connect, finish.
@@ -119,6 +131,8 @@ back and play on the table.
 
 ## Log
 
-- **2026-11-24**: Gave every todo item an `AR-<number>` id (AR-1 to AR-9).
+- **2026-11-24**: Gave every todo item an `AR-<number>` id (AR-1 to AR-9) and added AR-10
+  (in-game menu). Merged `connections` (PR #2): routed cables and tubes, full screen
+  version. `scenario-import` now conflicts with main. Unit tests on main pass (53).
 - **2026-11-10**: First full day. Built everything under Done. Started the Illuminator
   integration on `scenario-import`. Added CLAUDE.md and this file.

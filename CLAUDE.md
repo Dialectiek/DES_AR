@@ -45,7 +45,8 @@ The full list of URL options is in `index.html` ("URL options") and in the comme
 | `system.js` | Energy-system model (nodes, links, undo). Pure, tested. |
 | `manual.js` / `palette.js` | Manual mode: pure layout logic (tested) / palette and ghost 3D. |
 | `cards.js` | Colour-card detection. Pure, tested. |
-| `assets.js` / `links.js` | 3D objects for nodes / animated link arcs (manual and cards modes). |
+| `assets.js` / `links.js` | 3D objects for nodes / adapter from the energy system's links to `cables.js` (manual and cards modes). |
+| `router.js` / `cables.js` | Connection routing: right angles on a grid, around the assets, bridges where links cross. Pure, tested / draws the routed cables and tubes with flow dots, in every mode. |
 | `diorama.js` / `asset-labels.js` | Diorama scene loader and flows / floating asset info panels. |
 | `tools/model-builders.js` | Procedural source of the GLBs in `assets/models/`; export with `tools/export-models.html` (`node devserver.mjs 8001 --allow-save`). |
 
