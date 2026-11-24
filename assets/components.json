@@ -435,6 +435,8 @@
       "style": "cable"
     }
   },
+  "about_assetScale": "Every asset model on the table (manual and cards mode) is drawn at size_m x assetScale. Lower it to make room on the table; ?assetScale= in the URL overrides it. The palette tiles keep their own size.",
+  "assetScale": 0.65,
   "tableWhite": "#f0f0f0",
   "colours": {
     "red": {

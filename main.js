@@ -179,7 +179,7 @@ const error = (m, d) => log('error', m, d);
 
 // Bump on every change: the log and the page show it, so we can tell whether the headset
 // runs the newest code (leaving and re-entering AR does NOT reload it, reloading the page does).
-const APP_VERSION = 'qol v3';
+const APP_VERSION = 'qol v4';
 info('Table Cube version ' + APP_VERSION);
 // index.html checks this: without it, the page is running an older (cached) main.js.
 window.__tableCubeVersion = APP_VERSION;
@@ -586,7 +586,10 @@ components.ready = (async () => {
     });
     const unmapped = Object.entries(config.cards).filter(([, t]) => t === null).map(([c]) => c);
     if (unmapped.length) info('Card colours without an asset (shown as placeholder cubes)', unmapped);
-    components.templates = await preloadModels(config, { info, warn });
+    components.assetScale = params.has('assetScale') ? parseFloat(params.get('assetScale')) : (config.assetScale ?? 1);
+    if (!(components.assetScale > 0)) components.assetScale = 1;
+    components.templates = await preloadModels(config, { info, warn }, { scale: components.assetScale });
+    info('Asset scale', components.assetScale);
   } catch (err) {
     components.error = errText(err);
     error('Could not load the components', components.error);
@@ -2294,7 +2297,7 @@ function demoStep() {
 // The bumper: cancel a half-made connection, else undo (manual.js: bumperAction).
 // Shares build.system / build.objects / build.links / syncScene with the cards mode.
 // ---------------------------------------------------------------------------
-const MANUAL_MIN_GAP = 0.06; // metres between asset centres
+const MANUAL_MIN_GAP = 0.045; // metres between asset centres (assets are drawn at assetScale)
 const manual = {
   phase: 'edit',
   palette: null,         // createPalette(), once components.json and the models are loaded
