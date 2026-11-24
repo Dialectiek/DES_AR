@@ -2,7 +2,7 @@
 
 Update this file whenever a major task is finished (see CLAUDE.md). Newest log entries go on top.
 
-Last updated: 2026-11-10
+Last updated: 2026-11-24
 
 ## Branches
 
@@ -21,25 +21,30 @@ Last updated: 2026-11-10
   - New models: battery, grid pylon, house, transformer.
   - Contains the power-balance tutorials a and b.
   - Unit tests pass (54).
-  - Next: test on the headset, then merge into main.
+  - Next: test on the headset, then merge into main (AR-1).
 
 ## Todo
 
 Roughly in priority order. Put your name next to an item when you pick it up.
 
-- [ ] Headset-test `scenario-import` and merge it into main.
-- [ ] Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
-- [ ] Export the `EnergySystem` (`system.js`) as Illuminator YAML. This is pure logic, so test it in Node.
-- [ ] Colour-card detection: fix the camera-to-view mapping. The ordered list is in
+Every task has an id `AR-<number>`. Use it in branch names, commit messages and
+conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
+Ids are never reused or renumbered: a new task takes the next free id, and a finished task
+keeps its id when it moves to Done. **Next free id: AR-10.**
+
+- [ ] **AR-1** Headset-test `scenario-import` and merge it into main.
+- [ ] **AR-2** Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
+- [ ] **AR-3** Export the `EnergySystem` (`system.js`) as Illuminator YAML. This is pure logic, so test it in Node.
+- [ ] **AR-4** Colour-card detection: fix the camera-to-view mapping. The ordered list is in
       DETECTION_NOTES.md: check the mapping in `?debug=1`, find cards with a homography,
       reject grey-only calibrations, report "no card here".
-- [ ] Assign meta-assets (generators, storage, ...) to the other card colours (`assets/components.json`).
-- [ ] Merge the two asset configs: `components.json` (manual/cards) and `library.json`
+- [ ] **AR-5** Assign meta-assets (generators, storage, ...) to the other card colours (`assets/components.json`).
+- [ ] **AR-6** Merge the two asset configs: `components.json` (manual/cards) and `library.json`
       (diorama) describe the same assets twice.
-- [ ] Link power in manual/cards mode is a hard-coded placeholder (`links.js`). Replace it
+- [ ] **AR-7** Link power in manual/cards mode is a hard-coded placeholder (`links.js`). Replace it
       with Illuminator results once the export and run steps work.
-- [ ] Stop tracking `xr-log.txt` in git (about 0.5 MB, changes on every headset run): add a `.gitignore`.
-- [ ] Split `main.js` (about 3.7k lines) into smaller modules: calibration, input, modes, HUD/log.
+- [ ] **AR-8** Stop tracking `xr-log.txt` in git (about 0.5 MB, changes on every headset run): add a `.gitignore`.
+- [ ] **AR-9** Split `main.js` (about 3.7k lines) into smaller modules: calibration, input, modes, HUD/log.
 
 ## Roadmap
 
@@ -63,11 +68,11 @@ file, and the simulation results are shown on the table as energy flows.
 
 | Step | Status |
 |---|---|
-| Detect cards and tell their colours apart | First version, not reliable yet (DETECTION_NOTES.md) |
-| Map each colour to a meta-asset (`components.json`) | 2 of 12 colours mapped (red = house-pv, black = office-pv) |
+| Detect cards and tell their colours apart | First version, not reliable yet (DETECTION_NOTES.md, AR-4) |
+| Map each colour to a meta-asset (`components.json`) | 2 of 12 colours mapped (red = house-pv, black = office-pv) (AR-5) |
 | Build an energy system from the detected assets | Done for tap-to-add; links are made by hand (trigger on two assets) |
-| Export the system as Illuminator YAML | Not started (shared with part 2) |
-| Run it in Illuminator and show the results as flows | Not started (shared with part 2) |
+| Export the system as Illuminator YAML | Not started (shared with part 2, AR-3) |
+| Run it in Illuminator and show the results as flows | Not started (shared with part 2, AR-2, AR-7) |
 
 ### 2. Illuminator integration (all modes)
 
@@ -77,10 +82,10 @@ back and play on the table.
 
 | Step | Status |
 |---|---|
-| YAML + CSV → diorama with a timeline (read a scenario) | In progress on `scenario-import` |
-| Map Illuminator model types ↔ our assets, both ways (`illuminator-types.json`) | Read direction in progress on `scenario-import` |
-| Energy system → YAML (write a scenario) | Not started |
-| Send the YAML to Illuminator and get the output back | Not started; open question below |
+| YAML + CSV → diorama with a timeline (read a scenario) | In progress on `scenario-import` (AR-1) |
+| Map Illuminator model types ↔ our assets, both ways (`illuminator-types.json`) | Read direction in progress on `scenario-import` (AR-1) |
+| Energy system → YAML (write a scenario) | Not started (AR-3) |
+| Send the YAML to Illuminator and get the output back | Not started; open question below (AR-2) |
 | Edit the topology of a loaded scenario on the table, then re-run | Not started |
 
 **Open questions**
@@ -102,5 +107,6 @@ back and play on the table.
 
 ## Log
 
+- **2026-11-24**: Gave every todo item an `AR-<number>` id (AR-1 to AR-9).
 - **2026-11-10**: First full day. Built everything under Done. Started the Illuminator
   integration on `scenario-import`. Added CLAUDE.md and this file.
