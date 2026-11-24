@@ -30,7 +30,7 @@ Roughly in priority order. Put your name next to an item when you pick it up.
 Every task has an id `AR-<number>`. Use it in branch names, commit messages and
 conversation (e.g. branch `ar-3-yaml-export`, commit "AR-3: export EnergySystem as YAML").
 Ids are never reused or renumbered: a new task takes the next free id, and a finished task
-keeps its id when it moves to Done. **Next free id: AR-10.**
+keeps its id when it moves to Done. **Next free id: AR-11.**
 
 - [ ] **AR-1** Headset-test `scenario-import` and merge it into main.
 - [ ] **AR-2** Decide where Illuminator runs and how the headset sends it a YAML (see the roadmap's open questions).
@@ -45,6 +45,18 @@ keeps its id when it moves to Done. **Next free id: AR-10.**
       with Illuminator results once the export and run steps work.
 - [ ] **AR-8** Stop tracking `xr-log.txt` in git (about 0.5 MB, changes on every headset run): add a `.gitignore`.
 - [ ] **AR-9** Split `main.js` (about 3.7k lines) into smaller modules: calibration, input, modes, HUD/log.
+- [ ] **AR-10** In-game menu in AR with three actions:
+      - *Exit*: end the AR session and go back to the start page. Today only the headset's
+        own menu button exits.
+      - *Restart*: clear the table and start the chosen mode again without reloading the
+        page, keeping the table calibration (hold bumper = recalibrate stays as it is).
+        `resetBuild()` in `main.js` already clears the table; today only recalibration calls it.
+      - *Save*: store the current system (nodes, links, positions) so it can be loaded
+        again. `EnergySystem` (`system.js`) has no serialisation yet: add it as pure,
+        tested logic. Start with JSON (localStorage or a download); the Illuminator YAML
+        export is AR-3.
+      Open: how the menu is opened (a free controller input or an entry on the palette),
+      and whether Save needs a matching Load in the same task.
 
 ## Roadmap
 
